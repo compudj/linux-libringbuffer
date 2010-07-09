@@ -23,6 +23,13 @@ static __always_inline void *__inline_memcpy(void *to, const void *from, size_t 
 	return to;
 }
 
+#define __HAVE_ARCH_INLINE_MEMCPY
+static __always_inline void *inline_memcpy(void *to, const void *from,
+					   size_t n)
+{
+	return __inline_memcpy(to, from, n);
+}
+
 /* Even with __builtin_ the compiler may decide to use the out of line
    function. */
 

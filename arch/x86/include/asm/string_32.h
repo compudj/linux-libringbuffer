@@ -44,6 +44,13 @@ static __always_inline void *__memcpy(void *to, const void *from, size_t n)
 	return to;
 }
 
+#define __HAVE_ARCH_INLINE_MEMCPY
+static __always_inline void *inline_memcpy(void *to, const void *from,
+					   size_t n)
+{
+	return __memcpy(to, from, n);
+}
+
 /*
  * This looks ugly, but the compiler can optimize it totally,
  * as the count is constant.
