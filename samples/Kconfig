@@ -44,4 +44,13 @@ config SAMPLE_HW_BREAKPOINT
 	help
 	  This builds kernel hardware breakpoint example modules.
 
+config SAMPLE_LIB_RING_BUFFER_TEMPLATE
+	tristate "Build ring buffer template user -- loadable modules only"
+	default m
+	depends on LIB_RING_BUFFER
+	#depends on !TRACING	#name conflict with old ring buffer API
+	select TRACE_CLOCK_STANDALONE
+	help
+	  This builds the ring buffer template user.
+
 endif # SAMPLES
