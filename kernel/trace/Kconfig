@@ -499,6 +499,7 @@ config MMIOTRACE_TEST
 config RING_BUFFER_BENCHMARK
 	tristate "Ring buffer benchmark stress tester"
 	depends on FTRACE_RING_BUFFER
+	depends on LIB_RING_BUFFER
 	help
 	  This option creates a test to stress the ring buffer and benchmark it.
 	  It creates its own ring buffer such that it will not interfere with

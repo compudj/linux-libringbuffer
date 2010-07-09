@@ -24,6 +24,7 @@ obj-y += trace_clock.o
 obj-$(CONFIG_FUNCTION_TRACER) += libftrace.o
 obj-$(CONFIG_FTRACE_RING_BUFFER) += ftrace_ring_buffer.o
 obj-$(CONFIG_RING_BUFFER_BENCHMARK) += ftrace_ring_buffer_benchmark.o
+obj-$(CONFIG_RING_BUFFER_BENCHMARK) += lib_ring_buffer_benchmark.o
 
 obj-$(CONFIG_TRACING) += trace.o
 obj-$(CONFIG_TRACING) += trace_output.o
