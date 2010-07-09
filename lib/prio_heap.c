@@ -23,9 +23,46 @@ void heap_free(struct ptr_heap *heap)
 	kfree(heap->ptrs);
 }
 
-void *heap_insert(struct ptr_heap *heap, void *p)
+static void heapify(struct ptr_heap *heap, void **ptrs, void *p, int pos)
+{
+	while (1) {
+		int left = 2 * pos + 1;
+		int right = 2 * pos + 2;
+		int largest = pos;
+		if (left < heap->size && heap->gt(ptrs[left], p))
+			largest = left;
+		if (right < heap->size && heap->gt(ptrs[right], ptrs[largest]))
+			largest = right;
+		if (largest == pos)
+			break;
+		/* Push p down the heap one level and bump one up */
+		ptrs[pos] = ptrs[largest];
+		ptrs[largest] = p;
+		pos = largest;
+	}
+}
+
+void *heap_replace_max(struct ptr_heap *heap, void *p)
 {
 	void *res;
+	void **ptrs = heap->ptrs;
+	int pos;
+
+	if (!heap->size) {
+		ptrs[heap->size++] = p;
+		return NULL;
+	}
+
+	/* Replace the current max and heapify */
+	res = ptrs[0];
+	ptrs[0] = p;
+	pos = 0;
+	heapify(heap, ptrs, p, pos);
+	return res;
+}
+
+void *heap_insert(struct ptr_heap *heap, void *p)
+{
 	void **ptrs = heap->ptrs;
 	int pos;
 
@@ -47,24 +84,40 @@ void *heap_insert(struct ptr_heap *heap, void *p)
 		return p;
 
 	/* Replace the current max and heapify */
-	res = ptrs[0];
-	ptrs[0] = p;
-	pos = 0;
+	return heap_replace_max(heap, p);
+}
 
-	while (1) {
-		int left = 2 * pos + 1;
-		int right = 2 * pos + 2;
-		int largest = pos;
-		if (left < heap->size && heap->gt(ptrs[left], p))
-			largest = left;
-		if (right < heap->size && heap->gt(ptrs[right], ptrs[largest]))
-			largest = right;
-		if (largest == pos)
-			break;
-		/* Push p down the heap one level and bump one up */
-		ptrs[pos] = ptrs[largest];
-		ptrs[largest] = p;
-		pos = largest;
+void *heap_remove(struct ptr_heap *heap)
+{
+	void **ptrs = heap->ptrs;
+
+	switch (heap->size) {
+	case 0:
+		return NULL;
+	case 1:
+		return ptrs[--heap->size];
 	}
-	return res;
+
+	/* Shrink, replace the current max by previous last entry and heapify */
+	return heap_replace_max(heap, ptrs[--heap->size]);
+}
+
+void *heap_cherrypick(struct ptr_heap *heap, void *p)
+{
+	void **ptrs = heap->ptrs;
+	size_t pos, size = heap->size;
+
+	for (pos = 0; pos < size; pos++)
+		if (ptrs[pos] == p)
+			goto found;
+	return NULL;
+found:
+	if (heap->size == 1)
+		return ptrs[--heap->size];
+	/*
+	 * Replace p with previous last entry and heapify.
+	 */
+	ptrs[pos] = ptrs[--heap->size];
+	heapify(heap, ptrs, ptrs[pos], pos);
+	return p;
 }
