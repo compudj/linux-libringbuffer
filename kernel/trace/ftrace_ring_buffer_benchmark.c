@@ -1,9 +1,9 @@
 /*
- * ring buffer tester and benchmark
+ * ftrace ring buffer tester and benchmark
  *
  * Copyright (C) 2009 Steven Rostedt <srostedt@redhat.com>
  */
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 #include <linux/completion.h>
 #include <linux/kthread.h>
 #include <linux/module.h>
@@ -27,7 +27,7 @@ static int reader_finish;
 static struct completion read_start;
 static struct completion read_done;
 
-static struct ring_buffer *buffer;
+static struct ftrace_ring_buffer *buffer;
 static struct task_struct *producer;
 static struct task_struct *consumer;
 static unsigned long read;
@@ -77,15 +77,15 @@ enum event_status {
 
 static enum event_status read_event(int cpu)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	int *entry;
 	u64 ts;
 
-	event = ring_buffer_consume(buffer, cpu, &ts, NULL);
+	event = ftrace_ring_buffer_consume(buffer, cpu, &ts, NULL);
 	if (!event)
 		return EVENT_DROPPED;
 
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	if (*entry != cpu) {
 		KILL_TEST();
 		return EVENT_DROPPED;
@@ -97,7 +97,7 @@ static enum event_status read_event(int cpu)
 
 static enum event_status read_page(int cpu)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct rb_page *rpage;
 	unsigned long commit;
 	void *bpage;
@@ -106,11 +106,11 @@ static enum event_status read_page(int cpu)
 	int inc;
 	int i;
 
-	bpage = ring_buffer_alloc_read_page(buffer);
+	bpage = ftrace_ring_buffer_alloc_read_page(buffer);
 	if (!bpage)
 		return EVENT_DROPPED;
 
-	ret = ring_buffer_read_page(buffer, &bpage, PAGE_SIZE, cpu, 1);
+	ret = ftrace_ring_buffer_read_page(buffer, &bpage, PAGE_SIZE, cpu, 1);
 	if (ret >= 0) {
 		rpage = bpage;
 		/* The commit may have missed event flags set, clear them */
@@ -135,7 +135,7 @@ static enum event_status read_page(int cpu)
 				inc = 8;
 				break;
 			case 0:
-				entry = ring_buffer_event_data(event);
+				entry = ftrace_ring_buffer_event_data(event);
 				if (*entry != cpu) {
 					KILL_TEST();
 					break;
@@ -148,7 +148,7 @@ static enum event_status read_page(int cpu)
 				inc = event->array[0] + 4;
 				break;
 			default:
-				entry = ring_buffer_event_data(event);
+				entry = ftrace_ring_buffer_event_data(event);
 				if (*entry != cpu) {
 					KILL_TEST();
 					break;
@@ -165,14 +165,14 @@ static enum event_status read_page(int cpu)
 			}
 		}
 	}
-	ring_buffer_free_read_page(buffer, bpage);
+	ftrace_ring_buffer_free_read_page(buffer, bpage);
 
 	if (ret < 0)
 		return EVENT_DROPPED;
 	return EVENT_FOUND;
 }
 
-static void ring_buffer_consumer(void)
+static void ftrace_ring_buffer_consumer(void)
 {
 	/* toggle between reading pages and events */
 	read_events ^= 1;
@@ -211,7 +211,7 @@ static void ring_buffer_consumer(void)
 	complete(&read_done);
 }
 
-static void ring_buffer_producer(void)
+static void ftrace_ring_buffer_producer(void)
 {
 	struct timeval start_tv;
 	struct timeval end_tv;
@@ -230,19 +230,19 @@ static void ring_buffer_producer(void)
 	trace_printk("Starting ring buffer hammer\n");
 	do_gettimeofday(&start_tv);
 	do {
-		struct ring_buffer_event *event;
+		struct ftrace_ring_buffer_event *event;
 		int *entry;
 		int i;
 
 		for (i = 0; i < write_iteration; i++) {
-			event = ring_buffer_lock_reserve(buffer, 10);
+			event = ftrace_ring_buffer_lock_reserve(buffer, 10);
 			if (!event) {
 				missed++;
 			} else {
 				hit++;
-				entry = ring_buffer_event_data(event);
+				entry = ftrace_ring_buffer_event_data(event);
 				*entry = smp_processor_id();
-				ring_buffer_unlock_commit(buffer, event);
+				ftrace_ring_buffer_unlock_commit(buffer, event);
 			}
 		}
 		do_gettimeofday(&end_tv);
@@ -285,8 +285,8 @@ static void ring_buffer_producer(void)
 	time *= USEC_PER_SEC;
 	time += (long long)((long)end_tv.tv_usec - (long)start_tv.tv_usec);
 
-	entries = ring_buffer_entries(buffer);
-	overruns = ring_buffer_overruns(buffer);
+	entries = ftrace_ring_buffer_entries(buffer);
+	overruns = ftrace_ring_buffer_overruns(buffer);
 
 	if (kill_test)
 		trace_printk("ERROR!\n");
@@ -367,12 +367,12 @@ static void wait_to_die(void)
 	__set_current_state(TASK_RUNNING);
 }
 
-static int ring_buffer_consumer_thread(void *arg)
+static int ftrace_ring_buffer_consumer_thread(void *arg)
 {
 	while (!kthread_should_stop() && !kill_test) {
 		complete(&read_start);
 
-		ring_buffer_consumer();
+		ftrace_ring_buffer_consumer();
 
 		set_current_state(TASK_INTERRUPTIBLE);
 		if (kthread_should_stop() || kill_test)
@@ -389,12 +389,12 @@ static int ring_buffer_consumer_thread(void *arg)
 	return 0;
 }
 
-static int ring_buffer_producer_thread(void *arg)
+static int ftrace_ring_buffer_producer_thread(void *arg)
 {
 	init_completion(&read_start);
 
 	while (!kthread_should_stop() && !kill_test) {
-		ring_buffer_reset(buffer);
+		ftrace_ring_buffer_reset(buffer);
 
 		if (consumer) {
 			smp_wmb();
@@ -402,7 +402,7 @@ static int ring_buffer_producer_thread(void *arg)
 			wait_for_completion(&read_start);
 		}
 
-		ring_buffer_producer();
+		ftrace_ring_buffer_producer();
 
 		trace_printk("Sleeping for 10 secs\n");
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -416,24 +416,24 @@ static int ring_buffer_producer_thread(void *arg)
 	return 0;
 }
 
-static int __init ring_buffer_benchmark_init(void)
+static int __init ftrace_ring_buffer_benchmark_init(void)
 {
 	int ret;
 
 	/* make a one meg buffer in overwite mode */
-	buffer = ring_buffer_alloc(1000000, RB_FL_OVERWRITE);
+	buffer = ftrace_ring_buffer_alloc(1000000, RB_FL_OVERWRITE);
 	if (!buffer)
 		return -ENOMEM;
 
 	if (!disable_reader) {
-		consumer = kthread_create(ring_buffer_consumer_thread,
+		consumer = kthread_create(ftrace_ring_buffer_consumer_thread,
 					  NULL, "rb_consumer");
 		ret = PTR_ERR(consumer);
 		if (IS_ERR(consumer))
 			goto out_fail;
 	}
 
-	producer = kthread_run(ring_buffer_producer_thread,
+	producer = kthread_run(ftrace_ring_buffer_producer_thread,
 			       NULL, "rb_producer");
 	ret = PTR_ERR(producer);
 
@@ -468,21 +468,21 @@ static int __init ring_buffer_benchmark_init(void)
 		kthread_stop(consumer);
 
  out_fail:
-	ring_buffer_free(buffer);
+	ftrace_ring_buffer_free(buffer);
 	return ret;
 }
 
-static void __exit ring_buffer_benchmark_exit(void)
+static void __exit ftrace_ring_buffer_benchmark_exit(void)
 {
 	kthread_stop(producer);
 	if (consumer)
 		kthread_stop(consumer);
-	ring_buffer_free(buffer);
+	ftrace_ring_buffer_free(buffer);
 }
 
-module_init(ring_buffer_benchmark_init);
-module_exit(ring_buffer_benchmark_exit);
+module_init(ftrace_ring_buffer_benchmark_init);
+module_exit(ftrace_ring_buffer_benchmark_exit);
 
 MODULE_AUTHOR("Steven Rostedt");
-MODULE_DESCRIPTION("ring_buffer_benchmark");
+MODULE_DESCRIPTION("ftrace_ring_buffer_benchmark");
 MODULE_LICENSE("GPL");

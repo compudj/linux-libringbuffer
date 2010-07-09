@@ -25,12 +25,12 @@ static inline int trace_valid_entry(struct trace_entry *entry)
 
 static int trace_test_buffer_cpu(struct trace_array *tr, int cpu)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct trace_entry *entry;
 	unsigned int loops = 0;
 
-	while ((event = ring_buffer_consume(tr->buffer, cpu, NULL, NULL))) {
-		entry = ring_buffer_event_data(event);
+	while ((event = ftrace_ring_buffer_consume(tr->buffer, cpu, NULL, NULL))) {
+		entry = ftrace_ring_buffer_event_data(event);
 
 		/*
 		 * The ring buffer is a size of trace_buf_size, if
@@ -69,7 +69,7 @@ static int trace_test_buffer(struct trace_array *tr, unsigned long *count)
 	local_irq_save(flags);
 	arch_spin_lock(&ftrace_max_lock);
 
-	cnt = ring_buffer_entries(tr->buffer);
+	cnt = ftrace_ring_buffer_entries(tr->buffer);
 
 	/*
 	 * The trace_test_buffer_cpu runs a while loop to consume all data.

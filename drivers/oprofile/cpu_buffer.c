@@ -30,7 +30,7 @@
 
 #define OP_BUFFER_FLAGS	0
 
-static struct ring_buffer *op_ring_buffer;
+static struct ftrace_ring_buffer *op_ftrace_ring_buffer;
 DEFINE_PER_CPU(struct oprofile_cpu_buffer, op_cpu_buffer);
 
 static void wq_sync_buffer(struct work_struct *work);
@@ -52,9 +52,9 @@ void oprofile_cpu_buffer_inc_smpl_lost(void)
 
 void free_cpu_buffers(void)
 {
-	if (op_ring_buffer)
-		ring_buffer_free(op_ring_buffer);
-	op_ring_buffer = NULL;
+	if (op_ftrace_ring_buffer)
+		ftrace_ring_buffer_free(op_ftrace_ring_buffer);
+	op_ftrace_ring_buffer = NULL;
 }
 
 #define RB_EVENT_HDR_SIZE 4
@@ -67,8 +67,8 @@ int alloc_cpu_buffers(void)
 	unsigned long byte_size = buffer_size * (sizeof(struct op_sample) +
 						 RB_EVENT_HDR_SIZE);
 
-	op_ring_buffer = ring_buffer_alloc(byte_size, OP_BUFFER_FLAGS);
-	if (!op_ring_buffer)
+	op_ftrace_ring_buffer = ftrace_ring_buffer_alloc(byte_size, OP_BUFFER_FLAGS);
+	if (!op_ftrace_ring_buffer)
 		goto fail;
 
 	for_each_possible_cpu(i) {
@@ -139,12 +139,12 @@ void end_cpu_work(void)
 struct op_sample
 *op_cpu_buffer_write_reserve(struct op_entry *entry, unsigned long size)
 {
-	entry->event = ring_buffer_lock_reserve
-		(op_ring_buffer, sizeof(struct op_sample) +
+	entry->event = ftrace_ring_buffer_lock_reserve
+		(op_ftrace_ring_buffer, sizeof(struct op_sample) +
 		 size * sizeof(entry->sample->data[0]));
 	if (!entry->event)
 		return NULL;
-	entry->sample = ring_buffer_event_data(entry->event);
+	entry->sample = ftrace_ring_buffer_event_data(entry->event);
 	entry->size = size;
 	entry->data = entry->sample->data;
 
@@ -153,19 +153,19 @@ struct op_sample
 
 int op_cpu_buffer_write_commit(struct op_entry *entry)
 {
-	return ring_buffer_unlock_commit(op_ring_buffer, entry->event);
+	return ftrace_ring_buffer_unlock_commit(op_ftrace_ring_buffer, entry->event);
 }
 
 struct op_sample *op_cpu_buffer_read_entry(struct op_entry *entry, int cpu)
 {
-	struct ring_buffer_event *e;
-	e = ring_buffer_consume(op_ring_buffer, cpu, NULL, NULL);
+	struct ftrace_ring_buffer_event *e;
+	e = ftrace_ring_buffer_consume(op_ftrace_ring_buffer, cpu, NULL, NULL);
 	if (!e)
 		return NULL;
 
 	entry->event = e;
-	entry->sample = ring_buffer_event_data(e);
-	entry->size = (ring_buffer_event_length(e) - sizeof(struct op_sample))
+	entry->sample = ftrace_ring_buffer_event_data(e);
+	entry->size = (ftrace_ring_buffer_event_length(e) - sizeof(struct op_sample))
 		/ sizeof(entry->sample->data[0]);
 	entry->data = entry->sample->data;
 	return entry->sample;
@@ -173,7 +173,7 @@ struct op_sample *op_cpu_buffer_read_entry(struct op_entry *entry, int cpu)
 
 unsigned long op_cpu_buffer_entries(int cpu)
 {
-	return ring_buffer_entries_cpu(op_ring_buffer, cpu);
+	return ftrace_ring_buffer_entries_cpu(op_ftrace_ring_buffer, cpu);
 }
 
 static int

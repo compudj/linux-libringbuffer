@@ -77,9 +77,9 @@ void ksym_hbp_handler(struct perf_event *hbp, int nmi,
 		      struct perf_sample_data *data,
 		      struct pt_regs *regs)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct ksym_trace_entry *entry;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer *buffer;
 	int pc;
 
 	if (!ksym_tracing_enabled)
@@ -94,7 +94,7 @@ void ksym_hbp_handler(struct perf_event *hbp, int nmi,
 	if (!event)
 		return;
 
-	entry		= ring_buffer_event_data(event);
+	entry		= ftrace_ring_buffer_event_data(event);
 	entry->ip	= instruction_pointer(regs);
 	entry->type	= hw_breakpoint_type(hbp);
 	entry->addr	= hw_breakpoint_addr(hbp);

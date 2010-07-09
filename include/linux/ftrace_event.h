@@ -1,7 +1,7 @@
 #ifndef _LINUX_FTRACE_EVENT_H
 #define _LINUX_FTRACE_EVENT_H
 
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 #include <linux/trace_seq.h>
 #include <linux/percpu.h>
 #include <linux/hardirq.h>
@@ -55,7 +55,7 @@ struct trace_iterator {
 	void			*private;
 	int			cpu_file;
 	struct mutex		mutex;
-	struct ring_buffer_iter	*buffer_iter[NR_CPUS];
+	struct ftrace_ring_buffer_iter	*buffer_iter[NR_CPUS];
 	unsigned long		iter_flags;
 
 	/* The below is zeroed out in pipe_read */
@@ -106,18 +106,18 @@ enum print_line_t {
 void tracing_generic_entry_update(struct trace_entry *entry,
 				  unsigned long flags,
 				  int pc);
-struct ring_buffer_event *
-trace_current_buffer_lock_reserve(struct ring_buffer **current_buffer,
+struct ftrace_ring_buffer_event *
+trace_current_buffer_lock_reserve(struct ftrace_ring_buffer **current_buffer,
 				  int type, unsigned long len,
 				  unsigned long flags, int pc);
-void trace_current_buffer_unlock_commit(struct ring_buffer *buffer,
-					struct ring_buffer_event *event,
+void trace_current_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+					struct ftrace_ring_buffer_event *event,
 					unsigned long flags, int pc);
-void trace_nowake_buffer_unlock_commit(struct ring_buffer *buffer,
-				       struct ring_buffer_event *event,
+void trace_nowake_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+				       struct ftrace_ring_buffer_event *event,
 					unsigned long flags, int pc);
-void trace_current_buffer_discard_commit(struct ring_buffer *buffer,
-					 struct ring_buffer_event *event);
+void trace_current_buffer_discard_commit(struct ftrace_ring_buffer *buffer,
+					 struct ftrace_ring_buffer_event *event);
 
 void tracing_record_cmdline(struct task_struct *tsk);
 
@@ -199,10 +199,10 @@ struct ftrace_event_call {
 
 extern void destroy_preds(struct ftrace_event_call *call);
 extern int filter_match_preds(struct event_filter *filter, void *rec);
-extern int filter_current_check_discard(struct ring_buffer *buffer,
+extern int filter_current_check_discard(struct ftrace_ring_buffer *buffer,
 					struct ftrace_event_call *call,
 					void *rec,
-					struct ring_buffer_event *event);
+					struct ftrace_ring_buffer_event *event);
 
 enum {
 	FILTER_OTHER = 0,

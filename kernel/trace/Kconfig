@@ -52,7 +52,7 @@ config HAVE_SYSCALL_TRACEPOINTS
 config TRACER_MAX_TRACE
 	bool
 
-config RING_BUFFER
+config FTRACE_RING_BUFFER
 	bool
 
 config FTRACE_NMI_ENTER
@@ -67,7 +67,7 @@ config EVENT_TRACING
 config CONTEXT_SWITCH_TRACER
 	bool
 
-config RING_BUFFER_ALLOW_SWAP
+config FTRACE_RING_BUFFER_ALLOW_SWAP
 	bool
 	help
 	 Allow the use of ring_buffer_swap_cpu.
@@ -86,7 +86,7 @@ config TRACE_CLOCK_STANDALONE
 config TRACING
 	bool
 	select DEBUG_FS
-	select RING_BUFFER
+	select FTRACE_RING_BUFFER
 	select STACKTRACE if STACKTRACE_SUPPORT
 	select TRACEPOINTS
 	select NOP_TRACER
@@ -160,7 +160,7 @@ config IRQSOFF_TRACER
 	select TRACE_IRQFLAGS
 	select GENERIC_TRACER
 	select TRACER_MAX_TRACE
-	select RING_BUFFER_ALLOW_SWAP
+	select FTRACE_RING_BUFFER_ALLOW_SWAP
 	help
 	  This option measures the time spent in irqs-off critical
 	  sections, with microsecond accuracy.
@@ -182,7 +182,7 @@ config PREEMPT_TRACER
 	depends on PREEMPT
 	select GENERIC_TRACER
 	select TRACER_MAX_TRACE
-	select RING_BUFFER_ALLOW_SWAP
+	select FTRACE_RING_BUFFER_ALLOW_SWAP
 	help
 	  This option measures the time spent in preemption-off critical
 	  sections, with microsecond accuracy.
@@ -498,7 +498,7 @@ config MMIOTRACE_TEST
 
 config RING_BUFFER_BENCHMARK
 	tristate "Ring buffer benchmark stress tester"
-	depends on RING_BUFFER
+	depends on FTRACE_RING_BUFFER
 	help
 	  This option creates a test to stress the ring buffer and benchmark it.
 	  It creates its own ring buffer such that it will not interfere with

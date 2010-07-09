@@ -185,8 +185,8 @@ int __trace_graph_entry(struct trace_array *tr,
 				int pc)
 {
 	struct ftrace_event_call *call = &event_funcgraph_entry;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
 	struct ftrace_graph_ent_entry *entry;
 
 	if (unlikely(__this_cpu_read(ftrace_cpu_disabled)))
@@ -196,10 +196,10 @@ int __trace_graph_entry(struct trace_array *tr,
 					  sizeof(*entry), flags, pc);
 	if (!event)
 		return 0;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->graph_ent			= *trace;
 	if (!filter_current_check_discard(buffer, call, entry, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 
 	return 1;
 }
@@ -252,8 +252,8 @@ void __trace_graph_return(struct trace_array *tr,
 				int pc)
 {
 	struct ftrace_event_call *call = &event_funcgraph_exit;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
 	struct ftrace_graph_ret_entry *entry;
 
 	if (unlikely(__this_cpu_read(ftrace_cpu_disabled)))
@@ -263,10 +263,10 @@ void __trace_graph_return(struct trace_array *tr,
 					  sizeof(*entry), flags, pc);
 	if (!event)
 		return;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->ret				= *trace;
 	if (!filter_current_check_discard(buffer, call, entry, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 }
 
 void trace_graph_return(struct ftrace_graph_ret *trace)
@@ -467,8 +467,8 @@ get_return_for_leaf(struct trace_iterator *iter,
 		struct ftrace_graph_ent_entry *curr)
 {
 	struct fgraph_data *data = iter->private;
-	struct ring_buffer_iter *ring_iter = NULL;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_iter *ring_iter = NULL;
+	struct ftrace_ring_buffer_event *event;
 	struct ftrace_graph_ret_entry *next;
 
 	/*
@@ -484,22 +484,22 @@ get_return_for_leaf(struct trace_iterator *iter,
 
 		/* First peek to compare current entry and the next one */
 		if (ring_iter)
-			event = ring_buffer_iter_peek(ring_iter, NULL);
+			event = ftrace_ring_buffer_iter_peek(ring_iter, NULL);
 		else {
 			/*
 			 * We need to consume the current entry to see
 			 * the next one.
 			 */
-			ring_buffer_consume(iter->tr->buffer, iter->cpu,
+			ftrace_ring_buffer_consume(iter->tr->buffer, iter->cpu,
 					    NULL, NULL);
-			event = ring_buffer_peek(iter->tr->buffer, iter->cpu,
+			event = ftrace_ring_buffer_peek(iter->tr->buffer, iter->cpu,
 						 NULL, NULL);
 		}
 
 		if (!event)
 			return NULL;
 
-		next = ring_buffer_event_data(event);
+		next = ftrace_ring_buffer_event_data(event);
 
 		if (data) {
 			/*
@@ -520,7 +520,7 @@ get_return_for_leaf(struct trace_iterator *iter,
 
 	/* this is a leaf, now advance the iterator */
 	if (ring_iter)
-		ring_buffer_read(ring_iter, NULL);
+		ftrace_ring_buffer_read(ring_iter, NULL);
 
 	return next;
 }

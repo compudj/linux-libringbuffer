@@ -11,7 +11,7 @@
  *  Copyright (C) 2004-2006 Ingo Molnar
  *  Copyright (C) 2004 William Lee Irwin III
  */
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 #include <generated/utsrelease.h>
 #include <linux/stacktrace.h>
 #include <linux/writeback.h>
@@ -48,7 +48,7 @@
  * On boot up, the ring buffer is set to the minimum size, so that
  * we do not waste memory on systems that are not using tracing.
  */
-int ring_buffer_expanded;
+int ftrace_ring_buffer_expanded;
 
 /*
  * We need to change this state when a selftest is running.
@@ -135,7 +135,7 @@ static int __init set_cmdline_ftrace(char *str)
 	strncpy(bootup_tracer_buf, str, MAX_TRACER_SIZE);
 	default_bootup_tracer = bootup_tracer_buf;
 	/* We are using ftrace early, expand it */
-	ring_buffer_expanded = 1;
+	ftrace_ring_buffer_expanded = 1;
 	return 1;
 }
 __setup("ftrace=", set_cmdline_ftrace);
@@ -179,9 +179,9 @@ static struct trace_array	global_trace;
 
 static DEFINE_PER_CPU(struct trace_array_cpu, global_trace_cpu);
 
-int filter_current_check_discard(struct ring_buffer *buffer,
+int filter_current_check_discard(struct ftrace_ring_buffer *buffer,
 				 struct ftrace_event_call *call, void *rec,
-				 struct ring_buffer_event *event)
+				 struct ftrace_ring_buffer_event *event)
 {
 	return filter_check_discard(call, rec, buffer, event);
 }
@@ -195,8 +195,8 @@ cycle_t ftrace_now(int cpu)
 	if (!global_trace.buffer)
 		return trace_clock_local();
 
-	ts = ring_buffer_time_stamp(global_trace.buffer, cpu);
-	ring_buffer_normalize_time_stamp(global_trace.buffer, cpu, &ts);
+	ts = ftrace_ring_buffer_time_stamp(global_trace.buffer, cpu);
+	ftrace_ring_buffer_normalize_time_stamp(global_trace.buffer, cpu, &ts);
 
 	return ts;
 }
@@ -260,7 +260,7 @@ static DEFINE_MUTEX(trace_types_lock);
  * serialize the access of the ring buffer
  *
  * ring buffer serializes readers, but it is low level protection.
- * The validity of the events (which returns by ring_buffer_peek() ..etc)
+ * The validity of the events (which returns by ftrace_ring_buffer_peek() ..etc)
  * are not protected by ring buffer.
  *
  * The content of events may become garbage if we allow other process consumes
@@ -653,7 +653,7 @@ __update_max_tr(struct trace_array *tr, struct task_struct *tsk, int cpu)
 void
 update_max_tr(struct trace_array *tr, struct task_struct *tsk, int cpu)
 {
-	struct ring_buffer *buf = tr->buffer;
+	struct ftrace_ring_buffer *buf = tr->buffer;
 
 	if (trace_stop_count)
 		return;
@@ -689,7 +689,7 @@ update_max_tr_single(struct trace_array *tr, struct task_struct *tsk, int cpu)
 
 	ftrace_disable_cpu();
 
-	ret = ring_buffer_swap_cpu(max_tr.buffer, tr->buffer, cpu);
+	ret = ftrace_ring_buffer_swap_cpu(max_tr.buffer, tr->buffer, cpu);
 
 	if (ret == -EBUSY) {
 		/*
@@ -852,32 +852,32 @@ out:
 	mutex_unlock(&trace_types_lock);
 }
 
-static void __tracing_reset(struct ring_buffer *buffer, int cpu)
+static void __tracing_reset(struct ftrace_ring_buffer *buffer, int cpu)
 {
 	ftrace_disable_cpu();
-	ring_buffer_reset_cpu(buffer, cpu);
+	ftrace_ring_buffer_reset_cpu(buffer, cpu);
 	ftrace_enable_cpu();
 }
 
 void tracing_reset(struct trace_array *tr, int cpu)
 {
-	struct ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
 
-	ring_buffer_record_disable(buffer);
+	ftrace_ring_buffer_record_disable(buffer);
 
 	/* Make sure all commits have finished */
 	synchronize_sched();
 	__tracing_reset(buffer, cpu);
 
-	ring_buffer_record_enable(buffer);
+	ftrace_ring_buffer_record_enable(buffer);
 }
 
 void tracing_reset_online_cpus(struct trace_array *tr)
 {
-	struct ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
 	int cpu;
 
-	ring_buffer_record_disable(buffer);
+	ftrace_ring_buffer_record_disable(buffer);
 
 	/* Make sure all commits have finished */
 	synchronize_sched();
@@ -887,7 +887,7 @@ void tracing_reset_online_cpus(struct trace_array *tr)
 	for_each_online_cpu(cpu)
 		__tracing_reset(buffer, cpu);
 
-	ring_buffer_record_enable(buffer);
+	ftrace_ring_buffer_record_enable(buffer);
 }
 
 void tracing_reset_current(int cpu)
@@ -946,7 +946,7 @@ void ftrace_off_permanent(void)
  */
 void tracing_start(void)
 {
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer *buffer;
 	unsigned long flags;
 
 	if (tracing_disabled)
@@ -967,11 +967,11 @@ void tracing_start(void)
 
 	buffer = global_trace.buffer;
 	if (buffer)
-		ring_buffer_record_enable(buffer);
+		ftrace_ring_buffer_record_enable(buffer);
 
 	buffer = max_tr.buffer;
 	if (buffer)
-		ring_buffer_record_enable(buffer);
+		ftrace_ring_buffer_record_enable(buffer);
 
 	arch_spin_unlock(&ftrace_max_lock);
 
@@ -988,7 +988,7 @@ void tracing_start(void)
  */
 void tracing_stop(void)
 {
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer *buffer;
 	unsigned long flags;
 
 	ftrace_stop();
@@ -1001,11 +1001,11 @@ void tracing_stop(void)
 
 	buffer = global_trace.buffer;
 	if (buffer)
-		ring_buffer_record_disable(buffer);
+		ftrace_ring_buffer_record_disable(buffer);
 
 	buffer = max_tr.buffer;
 	if (buffer)
-		ring_buffer_record_disable(buffer);
+		ftrace_ring_buffer_record_disable(buffer);
 
 	arch_spin_unlock(&ftrace_max_lock);
 
@@ -1117,17 +1117,17 @@ tracing_generic_entry_update(struct trace_entry *entry, unsigned long flags,
 }
 EXPORT_SYMBOL_GPL(tracing_generic_entry_update);
 
-struct ring_buffer_event *
-trace_buffer_lock_reserve(struct ring_buffer *buffer,
+struct ftrace_ring_buffer_event *
+trace_buffer_lock_reserve(struct ftrace_ring_buffer *buffer,
 			  int type,
 			  unsigned long len,
 			  unsigned long flags, int pc)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 
-	event = ring_buffer_lock_reserve(buffer, len);
+	event = ftrace_ring_buffer_lock_reserve(buffer, len);
 	if (event != NULL) {
-		struct trace_entry *ent = ring_buffer_event_data(event);
+		struct trace_entry *ent = ftrace_ring_buffer_event_data(event);
 
 		tracing_generic_entry_update(ent, flags, pc);
 		ent->type = type;
@@ -1137,12 +1137,12 @@ trace_buffer_lock_reserve(struct ring_buffer *buffer,
 }
 
 static inline void
-__trace_buffer_unlock_commit(struct ring_buffer *buffer,
-			     struct ring_buffer_event *event,
+__trace_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+			     struct ftrace_ring_buffer_event *event,
 			     unsigned long flags, int pc,
 			     int wake)
 {
-	ring_buffer_unlock_commit(buffer, event);
+	ftrace_ring_buffer_unlock_commit(buffer, event);
 
 	ftrace_trace_stack(buffer, flags, 6, pc);
 	ftrace_trace_userstack(buffer, flags, pc);
@@ -1151,15 +1151,15 @@ __trace_buffer_unlock_commit(struct ring_buffer *buffer,
 		trace_wake_up();
 }
 
-void trace_buffer_unlock_commit(struct ring_buffer *buffer,
-				struct ring_buffer_event *event,
+void trace_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+				struct ftrace_ring_buffer_event *event,
 				unsigned long flags, int pc)
 {
 	__trace_buffer_unlock_commit(buffer, event, flags, pc, 1);
 }
 
-struct ring_buffer_event *
-trace_current_buffer_lock_reserve(struct ring_buffer **current_rb,
+struct ftrace_ring_buffer_event *
+trace_current_buffer_lock_reserve(struct ftrace_ring_buffer **current_rb,
 				  int type, unsigned long len,
 				  unsigned long flags, int pc)
 {
@@ -1169,26 +1169,26 @@ trace_current_buffer_lock_reserve(struct ring_buffer **current_rb,
 }
 EXPORT_SYMBOL_GPL(trace_current_buffer_lock_reserve);
 
-void trace_current_buffer_unlock_commit(struct ring_buffer *buffer,
-					struct ring_buffer_event *event,
+void trace_current_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+					struct ftrace_ring_buffer_event *event,
 					unsigned long flags, int pc)
 {
 	__trace_buffer_unlock_commit(buffer, event, flags, pc, 1);
 }
 EXPORT_SYMBOL_GPL(trace_current_buffer_unlock_commit);
 
-void trace_nowake_buffer_unlock_commit(struct ring_buffer *buffer,
-				       struct ring_buffer_event *event,
+void trace_nowake_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+				       struct ftrace_ring_buffer_event *event,
 				       unsigned long flags, int pc)
 {
 	__trace_buffer_unlock_commit(buffer, event, flags, pc, 0);
 }
 EXPORT_SYMBOL_GPL(trace_nowake_buffer_unlock_commit);
 
-void trace_current_buffer_discard_commit(struct ring_buffer *buffer,
-					 struct ring_buffer_event *event)
+void trace_current_buffer_discard_commit(struct ftrace_ring_buffer *buffer,
+					 struct ftrace_ring_buffer_event *event)
 {
-	ring_buffer_discard_commit(buffer, event);
+	ftrace_ring_buffer_discard_commit(buffer, event);
 }
 EXPORT_SYMBOL_GPL(trace_current_buffer_discard_commit);
 
@@ -1198,8 +1198,8 @@ trace_function(struct trace_array *tr,
 	       int pc)
 {
 	struct ftrace_event_call *call = &event_function;
-	struct ring_buffer *buffer = tr->buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer_event *event;
 	struct ftrace_entry *entry;
 
 	/* If we are reading the ring buffer, don't trace */
@@ -1210,12 +1210,12 @@ trace_function(struct trace_array *tr,
 					  flags, pc);
 	if (!event)
 		return;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->ip			= ip;
 	entry->parent_ip		= parent_ip;
 
 	if (!filter_check_discard(call, entry, buffer, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 }
 
 void
@@ -1228,12 +1228,12 @@ ftrace(struct trace_array *tr, struct trace_array_cpu *data,
 }
 
 #ifdef CONFIG_STACKTRACE
-static void __ftrace_trace_stack(struct ring_buffer *buffer,
+static void __ftrace_trace_stack(struct ftrace_ring_buffer *buffer,
 				 unsigned long flags,
 				 int skip, int pc)
 {
 	struct ftrace_event_call *call = &event_kernel_stack;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct stack_entry *entry;
 	struct stack_trace trace;
 
@@ -1241,7 +1241,7 @@ static void __ftrace_trace_stack(struct ring_buffer *buffer,
 					  sizeof(*entry), flags, pc);
 	if (!event)
 		return;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	memset(&entry->caller, 0, sizeof(entry->caller));
 
 	trace.nr_entries	= 0;
@@ -1251,10 +1251,10 @@ static void __ftrace_trace_stack(struct ring_buffer *buffer,
 
 	save_stack_trace(&trace);
 	if (!filter_check_discard(call, entry, buffer, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 }
 
-void ftrace_trace_stack(struct ring_buffer *buffer, unsigned long flags,
+void ftrace_trace_stack(struct ftrace_ring_buffer *buffer, unsigned long flags,
 			int skip, int pc)
 {
 	if (!(trace_flags & TRACE_ITER_STACKTRACE))
@@ -1286,10 +1286,10 @@ void trace_dump_stack(void)
 }
 
 void
-ftrace_trace_userstack(struct ring_buffer *buffer, unsigned long flags, int pc)
+ftrace_trace_userstack(struct ftrace_ring_buffer *buffer, unsigned long flags, int pc)
 {
 	struct ftrace_event_call *call = &event_user_stack;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct userstack_entry *entry;
 	struct stack_trace trace;
 
@@ -1307,7 +1307,7 @@ ftrace_trace_userstack(struct ring_buffer *buffer, unsigned long flags, int pc)
 					  sizeof(*entry), flags, pc);
 	if (!event)
 		return;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 
 	entry->tgid		= current->tgid;
 	memset(&entry->caller, 0, sizeof(entry->caller));
@@ -1319,7 +1319,7 @@ ftrace_trace_userstack(struct ring_buffer *buffer, unsigned long flags, int pc)
 
 	save_stack_trace_user(&trace);
 	if (!filter_check_discard(call, entry, buffer, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 }
 
 #ifdef UNUSED
@@ -1337,16 +1337,16 @@ ftrace_trace_special(void *__tr,
 		     int pc)
 {
 	struct ftrace_event_call *call = &event_special;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct trace_array *tr = __tr;
-	struct ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
 	struct special_entry *entry;
 
 	event = trace_buffer_lock_reserve(buffer, TRACE_SPECIAL,
 					  sizeof(*entry), 0, pc);
 	if (!event)
 		return;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->arg1			= arg1;
 	entry->arg2			= arg2;
 	entry->arg3			= arg3;
@@ -1397,8 +1397,8 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 	static u32 trace_buf[TRACE_BUF_SIZE];
 
 	struct ftrace_event_call *call = &event_bprint;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	struct trace_array *tr = &global_trace;
 	struct trace_array_cpu *data;
 	struct bprint_entry *entry;
@@ -1435,13 +1435,13 @@ int trace_vbprintk(unsigned long ip, const char *fmt, va_list args)
 					  flags, pc);
 	if (!event)
 		goto out_unlock;
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->ip			= ip;
 	entry->fmt			= fmt;
 
 	memcpy(entry->buf, trace_buf, sizeof(u32) * len);
 	if (!filter_check_discard(call, entry, buffer, event)) {
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 		ftrace_trace_stack(buffer, flags, 6, pc);
 	}
 
@@ -1480,8 +1480,8 @@ int trace_array_vprintk(struct trace_array *tr,
 	static char trace_buf[TRACE_BUF_SIZE];
 
 	struct ftrace_event_call *call = &event_print;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	struct trace_array_cpu *data;
 	int cpu, len = 0, size, pc;
 	struct print_entry *entry;
@@ -1511,13 +1511,13 @@ int trace_array_vprintk(struct trace_array *tr,
 					  irq_flags, pc);
 	if (!event)
 		goto out_unlock;
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->ip = ip;
 
 	memcpy(&entry->buf, trace_buf, len);
 	entry->buf[len] = '\0';
 	if (!filter_check_discard(call, entry, buffer, event)) {
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 		ftrace_trace_stack(buffer, irq_flags, 6, pc);
 	}
 
@@ -1550,7 +1550,7 @@ static void trace_iterator_increment(struct trace_iterator *iter)
 
 	iter->idx++;
 	if (iter->buffer_iter[iter->cpu])
-		ring_buffer_read(iter->buffer_iter[iter->cpu], NULL);
+		ftrace_ring_buffer_read(iter->buffer_iter[iter->cpu], NULL);
 
 	ftrace_enable_cpu();
 }
@@ -1559,28 +1559,28 @@ static struct trace_entry *
 peek_next_entry(struct trace_iterator *iter, int cpu, u64 *ts,
 		unsigned long *lost_events)
 {
-	struct ring_buffer_event *event;
-	struct ring_buffer_iter *buf_iter = iter->buffer_iter[cpu];
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer_iter *buf_iter = iter->buffer_iter[cpu];
 
 	/* Don't allow ftrace to trace into the ring buffers */
 	ftrace_disable_cpu();
 
 	if (buf_iter)
-		event = ring_buffer_iter_peek(buf_iter, ts);
+		event = ftrace_ring_buffer_iter_peek(buf_iter, ts);
 	else
-		event = ring_buffer_peek(iter->tr->buffer, cpu, ts,
+		event = ftrace_ring_buffer_peek(iter->tr->buffer, cpu, ts,
 					 lost_events);
 
 	ftrace_enable_cpu();
 
-	return event ? ring_buffer_event_data(event) : NULL;
+	return event ? ftrace_ring_buffer_event_data(event) : NULL;
 }
 
 static struct trace_entry *
 __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 		  unsigned long *missing_events, u64 *ent_ts)
 {
-	struct ring_buffer *buffer = iter->tr->buffer;
+	struct ftrace_ring_buffer *buffer = iter->tr->buffer;
 	struct trace_entry *ent, *next = NULL;
 	unsigned long lost_events = 0, next_lost = 0;
 	int cpu_file = iter->cpu_file;
@@ -1593,7 +1593,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 	 * all cpu and peek directly.
 	 */
 	if (cpu_file > TRACE_PIPE_ALL_CPU) {
-		if (ring_buffer_empty_cpu(buffer, cpu_file))
+		if (ftrace_ring_buffer_empty_cpu(buffer, cpu_file))
 			return NULL;
 		ent = peek_next_entry(iter, cpu_file, ent_ts, missing_events);
 		if (ent_cpu)
@@ -1604,7 +1604,7 @@ __find_next_entry(struct trace_iterator *iter, int *ent_cpu,
 
 	for_each_tracing_cpu(cpu) {
 
-		if (ring_buffer_empty_cpu(buffer, cpu))
+		if (ftrace_ring_buffer_empty_cpu(buffer, cpu))
 			continue;
 
 		ent = peek_next_entry(iter, cpu, &ts, &lost_events);
@@ -1655,7 +1655,7 @@ static void trace_consume(struct trace_iterator *iter)
 {
 	/* Don't allow ftrace to trace into the ring buffers */
 	ftrace_disable_cpu();
-	ring_buffer_consume(iter->tr->buffer, iter->cpu, &iter->ts,
+	ftrace_ring_buffer_consume(iter->tr->buffer, iter->cpu, &iter->ts,
 			    &iter->lost_events);
 	ftrace_enable_cpu();
 }
@@ -1690,8 +1690,8 @@ static void *s_next(struct seq_file *m, void *v, loff_t *pos)
 static void tracing_iter_reset(struct trace_iterator *iter, int cpu)
 {
 	struct trace_array *tr = iter->tr;
-	struct ring_buffer_event *event;
-	struct ring_buffer_iter *buf_iter;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer_iter *buf_iter;
 	unsigned long entries = 0;
 	u64 ts;
 
@@ -1701,18 +1701,18 @@ static void tracing_iter_reset(struct trace_iterator *iter, int cpu)
 		return;
 
 	buf_iter = iter->buffer_iter[cpu];
-	ring_buffer_iter_reset(buf_iter);
+	ftrace_ring_buffer_iter_reset(buf_iter);
 
 	/*
 	 * We could have the case with the max latency tracers
 	 * that a reset never took place on a cpu. This is evident
 	 * by the timestamp being before the start of the buffer.
 	 */
-	while ((event = ring_buffer_iter_peek(buf_iter, &ts))) {
+	while ((event = ftrace_ring_buffer_iter_peek(buf_iter, &ts))) {
 		if (ts >= iter->tr->time_start)
 			break;
 		entries++;
-		ring_buffer_read(buf_iter, NULL);
+		ftrace_ring_buffer_read(buf_iter, NULL);
 	}
 
 	tr->data[cpu]->skipped_entries = entries;
@@ -1825,7 +1825,7 @@ print_trace_header(struct seq_file *m, struct trace_iterator *iter)
 
 
 	for_each_tracing_cpu(cpu) {
-		count = ring_buffer_entries_cpu(tr->buffer, cpu);
+		count = ftrace_ring_buffer_entries_cpu(tr->buffer, cpu);
 		/*
 		 * If this buffer has skipped entries, then we hold all
 		 * entries for the trace and we need to ignore the
@@ -1837,7 +1837,7 @@ print_trace_header(struct seq_file *m, struct trace_iterator *iter)
 			total += count;
 		} else
 			total += count +
-				ring_buffer_overrun_cpu(tr->buffer, cpu);
+				ftrace_ring_buffer_overrun_cpu(tr->buffer, cpu);
 		entries += count;
 	}
 
@@ -2025,10 +2025,10 @@ int trace_empty(struct trace_iterator *iter)
 	if (iter->cpu_file != TRACE_PIPE_ALL_CPU) {
 		cpu = iter->cpu_file;
 		if (iter->buffer_iter[cpu]) {
-			if (!ring_buffer_iter_empty(iter->buffer_iter[cpu]))
+			if (!ftrace_ring_buffer_iter_empty(iter->buffer_iter[cpu]))
 				return 0;
 		} else {
-			if (!ring_buffer_empty_cpu(iter->tr->buffer, cpu))
+			if (!ftrace_ring_buffer_empty_cpu(iter->tr->buffer, cpu))
 				return 0;
 		}
 		return 1;
@@ -2036,10 +2036,10 @@ int trace_empty(struct trace_iterator *iter)
 
 	for_each_tracing_cpu(cpu) {
 		if (iter->buffer_iter[cpu]) {
-			if (!ring_buffer_iter_empty(iter->buffer_iter[cpu]))
+			if (!ftrace_ring_buffer_iter_empty(iter->buffer_iter[cpu]))
 				return 0;
 		} else {
-			if (!ring_buffer_empty_cpu(iter->tr->buffer, cpu))
+			if (!ftrace_ring_buffer_empty_cpu(iter->tr->buffer, cpu))
 				return 0;
 		}
 	}
@@ -2193,7 +2193,7 @@ __tracing_open(struct inode *inode, struct file *file)
 		iter->trace->open(iter);
 
 	/* Annotate start of buffers if we had overruns */
-	if (ring_buffer_overruns(iter->tr->buffer))
+	if (ftrace_ring_buffer_overruns(iter->tr->buffer))
 		iter->iter_flags |= TRACE_FILE_ANNOTATE;
 
 	/* stop the trace while dumping */
@@ -2202,19 +2202,19 @@ __tracing_open(struct inode *inode, struct file *file)
 	if (iter->cpu_file == TRACE_PIPE_ALL_CPU) {
 		for_each_tracing_cpu(cpu) {
 			iter->buffer_iter[cpu] =
-				ring_buffer_read_prepare(iter->tr->buffer, cpu);
+				ftrace_ring_buffer_read_prepare(iter->tr->buffer, cpu);
 		}
-		ring_buffer_read_prepare_sync();
+		ftrace_ring_buffer_read_prepare_sync();
 		for_each_tracing_cpu(cpu) {
-			ring_buffer_read_start(iter->buffer_iter[cpu]);
+			ftrace_ring_buffer_read_start(iter->buffer_iter[cpu]);
 			tracing_iter_reset(iter, cpu);
 		}
 	} else {
 		cpu = iter->cpu_file;
 		iter->buffer_iter[cpu] =
-			ring_buffer_read_prepare(iter->tr->buffer, cpu);
-		ring_buffer_read_prepare_sync();
-		ring_buffer_read_start(iter->buffer_iter[cpu]);
+			ftrace_ring_buffer_read_prepare(iter->tr->buffer, cpu);
+		ftrace_ring_buffer_read_prepare_sync();
+		ftrace_ring_buffer_read_start(iter->buffer_iter[cpu]);
 		tracing_iter_reset(iter, cpu);
 	}
 
@@ -2234,7 +2234,7 @@ __tracing_open(struct inode *inode, struct file *file)
  fail_buffer:
 	for_each_tracing_cpu(cpu) {
 		if (iter->buffer_iter[cpu])
-			ring_buffer_read_finish(iter->buffer_iter[cpu]);
+			ftrace_ring_buffer_read_finish(iter->buffer_iter[cpu]);
 	}
 	free_cpumask_var(iter->started);
 	tracing_start();
@@ -2269,7 +2269,7 @@ static int tracing_release(struct inode *inode, struct file *file)
 	mutex_lock(&trace_types_lock);
 	for_each_tracing_cpu(cpu) {
 		if (iter->buffer_iter[cpu])
-			ring_buffer_read_finish(iter->buffer_iter[cpu]);
+			ftrace_ring_buffer_read_finish(iter->buffer_iter[cpu]);
 	}
 
 	if (iter->trace && iter->trace->close)
@@ -2782,7 +2782,7 @@ int tracer_init(struct tracer *t, struct trace_array *tr)
 	return t->init(tr);
 }
 
-static int tracing_resize_ring_buffer(unsigned long size)
+static int tracing_resize_ftrace_ring_buffer(unsigned long size)
 {
 	int ret;
 
@@ -2791,17 +2791,17 @@ static int tracing_resize_ring_buffer(unsigned long size)
 	 * we use the size that was given, and we can forget about
 	 * expanding it later.
 	 */
-	ring_buffer_expanded = 1;
+	ftrace_ring_buffer_expanded = 1;
 
-	ret = ring_buffer_resize(global_trace.buffer, size);
+	ret = ftrace_ring_buffer_resize(global_trace.buffer, size);
 	if (ret < 0)
 		return ret;
 
-	ret = ring_buffer_resize(max_tr.buffer, size);
+	ret = ftrace_ring_buffer_resize(max_tr.buffer, size);
 	if (ret < 0) {
 		int r;
 
-		r = ring_buffer_resize(global_trace.buffer,
+		r = ftrace_ring_buffer_resize(global_trace.buffer,
 				       global_trace.entries);
 		if (r < 0) {
 			/*
@@ -2844,8 +2844,8 @@ int tracing_update_buffers(void)
 	int ret = 0;
 
 	mutex_lock(&trace_types_lock);
-	if (!ring_buffer_expanded)
-		ret = tracing_resize_ring_buffer(trace_buf_size);
+	if (!ftrace_ring_buffer_expanded)
+		ret = tracing_resize_ftrace_ring_buffer(trace_buf_size);
 	mutex_unlock(&trace_types_lock);
 
 	return ret;
@@ -2868,8 +2868,8 @@ static int tracing_set_tracer(const char *buf)
 
 	mutex_lock(&trace_types_lock);
 
-	if (!ring_buffer_expanded) {
-		ret = tracing_resize_ring_buffer(trace_buf_size);
+	if (!ftrace_ring_buffer_expanded) {
+		ret = tracing_resize_ftrace_ring_buffer(trace_buf_size);
 		if (ret < 0)
 			goto out;
 		ret = 0;
@@ -3404,7 +3404,7 @@ tracing_entries_read(struct file *filp, char __user *ubuf,
 	int r;
 
 	mutex_lock(&trace_types_lock);
-	if (!ring_buffer_expanded)
+	if (!ftrace_ring_buffer_expanded)
 		r = sprintf(buf, "%lu (expanded: %lu)\n",
 			    tr->entries >> 10,
 			    trace_buf_size >> 10);
@@ -3455,7 +3455,7 @@ tracing_entries_write(struct file *filp, const char __user *ubuf,
 	val <<= 10;
 
 	if (val != global_trace.entries) {
-		ret = tracing_resize_ring_buffer(val);
+		ret = tracing_resize_ftrace_ring_buffer(val);
 		if (ret < 0) {
 			cnt = ret;
 			goto out;
@@ -3567,9 +3567,9 @@ static ssize_t tracing_clock_write(struct file *filp, const char __user *ubuf,
 
 	mutex_lock(&trace_types_lock);
 
-	ring_buffer_set_clock(global_trace.buffer, trace_clocks[i].func);
+	ftrace_ring_buffer_set_clock(global_trace.buffer, trace_clocks[i].func);
 	if (max_tr.buffer)
-		ring_buffer_set_clock(max_tr.buffer, trace_clocks[i].func);
+		ftrace_ring_buffer_set_clock(max_tr.buffer, trace_clocks[i].func);
 
 	mutex_unlock(&trace_types_lock);
 
@@ -3672,7 +3672,7 @@ tracing_buffers_read(struct file *filp, char __user *ubuf,
 		return 0;
 
 	if (!info->spare)
-		info->spare = ring_buffer_alloc_read_page(info->tr->buffer);
+		info->spare = ftrace_ring_buffer_alloc_read_page(info->tr->buffer);
 	if (!info->spare)
 		return -ENOMEM;
 
@@ -3683,7 +3683,7 @@ tracing_buffers_read(struct file *filp, char __user *ubuf,
 	info->read = 0;
 
 	trace_access_lock(info->cpu);
-	ret = ring_buffer_read_page(info->tr->buffer,
+	ret = ftrace_ring_buffer_read_page(info->tr->buffer,
 				    &info->spare,
 				    count,
 				    info->cpu, 0);
@@ -3712,14 +3712,14 @@ static int tracing_buffers_release(struct inode *inode, struct file *file)
 	struct ftrace_buffer_info *info = file->private_data;
 
 	if (info->spare)
-		ring_buffer_free_read_page(info->tr->buffer, info->spare);
+		ftrace_ring_buffer_free_read_page(info->tr->buffer, info->spare);
 	kfree(info);
 
 	return 0;
 }
 
 struct buffer_ref {
-	struct ring_buffer	*buffer;
+	struct ftrace_ring_buffer	*buffer;
 	void			*page;
 	int			ref;
 };
@@ -3732,7 +3732,7 @@ static void buffer_pipe_buf_release(struct pipe_inode_info *pipe,
 	if (--ref->ref)
 		return;
 
-	ring_buffer_free_read_page(ref->buffer, ref->page);
+	ftrace_ring_buffer_free_read_page(ref->buffer, ref->page);
 	kfree(ref);
 	buf->private = 0;
 }
@@ -3774,7 +3774,7 @@ static void buffer_spd_release(struct splice_pipe_desc *spd, unsigned int i)
 	if (--ref->ref)
 		return;
 
-	ring_buffer_free_read_page(ref->buffer, ref->page);
+	ftrace_ring_buffer_free_read_page(ref->buffer, ref->page);
 	kfree(ref);
 	spd->partial[i].private = 0;
 }
@@ -3817,7 +3817,7 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 	}
 
 	trace_access_lock(info->cpu);
-	entries = ring_buffer_entries_cpu(info->tr->buffer, info->cpu);
+	entries = ftrace_ring_buffer_entries_cpu(info->tr->buffer, info->cpu);
 
 	for (i = 0; i < pipe->buffers && len && entries; i++, len -= PAGE_SIZE) {
 		struct page *page;
@@ -3829,16 +3829,16 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 
 		ref->ref = 1;
 		ref->buffer = info->tr->buffer;
-		ref->page = ring_buffer_alloc_read_page(ref->buffer);
+		ref->page = ftrace_ring_buffer_alloc_read_page(ref->buffer);
 		if (!ref->page) {
 			kfree(ref);
 			break;
 		}
 
-		r = ring_buffer_read_page(ref->buffer, &ref->page,
+		r = ftrace_ring_buffer_read_page(ref->buffer, &ref->page,
 					  len, info->cpu, 1);
 		if (r < 0) {
-			ring_buffer_free_read_page(ref->buffer,
+			ftrace_ring_buffer_free_read_page(ref->buffer,
 						   ref->page);
 			kfree(ref);
 			break;
@@ -3848,7 +3848,7 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 		 * zero out any left over data, this is going to
 		 * user land.
 		 */
-		size = ring_buffer_page_len(ref->page);
+		size = ftrace_ring_buffer_page_len(ref->page);
 		if (size < PAGE_SIZE)
 			memset(ref->page + size, 0, PAGE_SIZE - size);
 
@@ -3861,7 +3861,7 @@ tracing_buffers_splice_read(struct file *file, loff_t *ppos,
 		spd.nr_pages++;
 		*ppos += PAGE_SIZE;
 
-		entries = ring_buffer_entries_cpu(info->tr->buffer, info->cpu);
+		entries = ftrace_ring_buffer_entries_cpu(info->tr->buffer, info->cpu);
 	}
 
 	trace_access_unlock(info->cpu);
@@ -3906,13 +3906,13 @@ tracing_stats_read(struct file *filp, char __user *ubuf,
 
 	trace_seq_init(s);
 
-	cnt = ring_buffer_entries_cpu(tr->buffer, cpu);
+	cnt = ftrace_ring_buffer_entries_cpu(tr->buffer, cpu);
 	trace_seq_printf(s, "entries: %ld\n", cnt);
 
-	cnt = ring_buffer_overrun_cpu(tr->buffer, cpu);
+	cnt = ftrace_ring_buffer_overrun_cpu(tr->buffer, cpu);
 	trace_seq_printf(s, "overrun: %ld\n", cnt);
 
-	cnt = ring_buffer_commit_overrun_cpu(tr->buffer, cpu);
+	cnt = ftrace_ring_buffer_commit_overrun_cpu(tr->buffer, cpu);
 	trace_seq_printf(s, "commit overrun: %ld\n", cnt);
 
 	count = simple_read_from_buffer(ubuf, count, ppos, s->buffer, s->len);
@@ -4554,7 +4554,7 @@ __init static int tracer_alloc_buffers(void)
 		goto out_free_buffer_mask;
 
 	/* To save memory, keep the ring buffer size to its minimum */
-	if (ring_buffer_expanded)
+	if (ftrace_ring_buffer_expanded)
 		ring_buf_size = trace_buf_size;
 	else
 		ring_buf_size = 1;
@@ -4563,26 +4563,26 @@ __init static int tracer_alloc_buffers(void)
 	cpumask_copy(tracing_cpumask, cpu_all_mask);
 
 	/* TODO: make the number of buffers hot pluggable with CPUS */
-	global_trace.buffer = ring_buffer_alloc(ring_buf_size,
+	global_trace.buffer = ftrace_ring_buffer_alloc(ring_buf_size,
 						   TRACE_BUFFER_FLAGS);
 	if (!global_trace.buffer) {
 		printk(KERN_ERR "tracer: failed to allocate ring buffer!\n");
 		WARN_ON(1);
 		goto out_free_cpumask;
 	}
-	global_trace.entries = ring_buffer_size(global_trace.buffer);
+	global_trace.entries = ftrace_ring_buffer_size(global_trace.buffer);
 
 
 #ifdef CONFIG_TRACER_MAX_TRACE
-	max_tr.buffer = ring_buffer_alloc(ring_buf_size,
+	max_tr.buffer = ftrace_ring_buffer_alloc(ring_buf_size,
 					     TRACE_BUFFER_FLAGS);
 	if (!max_tr.buffer) {
 		printk(KERN_ERR "tracer: failed to allocate max ring buffer!\n");
 		WARN_ON(1);
-		ring_buffer_free(global_trace.buffer);
+		ftrace_ring_buffer_free(global_trace.buffer);
 		goto out_free_cpumask;
 	}
-	max_tr.entries = ring_buffer_size(max_tr.buffer);
+	max_tr.entries = ftrace_ring_buffer_size(max_tr.buffer);
 	WARN_ON(max_tr.entries != global_trace.entries);
 #endif
 

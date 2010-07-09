@@ -1277,7 +1277,7 @@ static char bootup_event_buf[COMMAND_LINE_SIZE] __initdata;
 static __init int setup_trace_event(char *str)
 {
 	strlcpy(bootup_event_buf, str, COMMAND_LINE_SIZE);
-	ring_buffer_expanded = 1;
+	ftrace_ring_buffer_expanded = 1;
 	tracing_selftest_disabled = 1;
 
 	return 1;
@@ -1318,11 +1318,11 @@ static __init int event_trace_init(void)
 
 	/* ring buffer internal formats */
 	trace_create_file("header_page", 0444, d_events,
-			  ring_buffer_print_page_header,
+			  ftrace_ring_buffer_print_page_header,
 			  &ftrace_show_header_fops);
 
 	trace_create_file("header_event", 0444, d_events,
-			  ring_buffer_print_entry_header,
+			  ftrace_ring_buffer_print_entry_header,
 			  &ftrace_show_header_fops);
 
 	trace_create_file("enable", 0644, d_events,
@@ -1517,8 +1517,8 @@ static DEFINE_PER_CPU(atomic_t, ftrace_test_event_disable);
 static void
 function_test_events_call(unsigned long ip, unsigned long parent_ip)
 {
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	struct ftrace_entry *entry;
 	unsigned long flags;
 	long disabled;
@@ -1540,7 +1540,7 @@ function_test_events_call(unsigned long ip, unsigned long parent_ip)
 						  flags, pc);
 	if (!event)
 		goto out;
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->ip			= ip;
 	entry->parent_ip		= parent_ip;
 

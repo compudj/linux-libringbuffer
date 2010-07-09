@@ -5,7 +5,7 @@
 #include <asm/atomic.h>
 #include <linux/sched.h>
 #include <linux/clocksource.h>
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 #include <linux/mmiotrace.h>
 #include <linux/tracepoint.h>
 #include <linux/ftrace.h>
@@ -147,7 +147,7 @@ struct trace_array_cpu {
  * They have on/off state as well:
  */
 struct trace_array {
-	struct ring_buffer	*buffer;
+	struct ftrace_ring_buffer	*buffer;
 	unsigned long		entries;
 	int			cpu;
 	cycle_t			time_start;
@@ -300,16 +300,16 @@ struct dentry *trace_create_file(const char *name,
 struct dentry *tracing_init_dentry(void);
 void init_tracer_sysprof_debugfs(struct dentry *d_tracer);
 
-struct ring_buffer_event;
+struct ftrace_ring_buffer_event;
 
-struct ring_buffer_event *
-trace_buffer_lock_reserve(struct ring_buffer *buffer,
+struct ftrace_ring_buffer_event *
+trace_buffer_lock_reserve(struct ftrace_ring_buffer *buffer,
 			  int type,
 			  unsigned long len,
 			  unsigned long flags,
 			  int pc);
-void trace_buffer_unlock_commit(struct ring_buffer *buffer,
-				struct ring_buffer_event *event,
+void trace_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+				struct ftrace_ring_buffer_event *event,
 				unsigned long flags, int pc);
 
 struct trace_entry *tracing_get_trace_entry(struct trace_array *tr,
@@ -376,21 +376,21 @@ void update_max_tr_single(struct trace_array *tr,
 #endif /* CONFIG_TRACER_MAX_TRACE */
 
 #ifdef CONFIG_STACKTRACE
-void ftrace_trace_stack(struct ring_buffer *buffer, unsigned long flags,
+void ftrace_trace_stack(struct ftrace_ring_buffer *buffer, unsigned long flags,
 			int skip, int pc);
 
-void ftrace_trace_userstack(struct ring_buffer *buffer, unsigned long flags,
+void ftrace_trace_userstack(struct ftrace_ring_buffer *buffer, unsigned long flags,
 			    int pc);
 
 void __trace_stack(struct trace_array *tr, unsigned long flags, int skip,
 		   int pc);
 #else
-static inline void ftrace_trace_stack(struct ring_buffer *buffer,
+static inline void ftrace_trace_stack(struct ftrace_ring_buffer *buffer,
 				      unsigned long flags, int skip, int pc)
 {
 }
 
-static inline void ftrace_trace_userstack(struct ring_buffer *buffer,
+static inline void ftrace_trace_userstack(struct ftrace_ring_buffer *buffer,
 					  unsigned long flags, int pc)
 {
 }
@@ -411,7 +411,7 @@ extern unsigned long ftrace_update_tot_cnt;
 extern int DYN_FTRACE_TEST_NAME(void);
 #endif
 
-extern int ring_buffer_expanded;
+extern int ftrace_ring_buffer_expanded;
 extern bool tracing_selftest_disabled;
 DECLARE_PER_CPU(int, ftrace_cpu_disabled);
 
@@ -717,12 +717,12 @@ trace_get_fields(struct ftrace_event_call *event_call);
 
 static inline int
 filter_check_discard(struct ftrace_event_call *call, void *rec,
-		     struct ring_buffer *buffer,
-		     struct ring_buffer_event *event)
+		     struct ftrace_ring_buffer *buffer,
+		     struct ftrace_ring_buffer_event *event)
 {
 	if (unlikely(call->flags & TRACE_EVENT_FL_FILTERED) &&
 	    !filter_match_preds(call->filter, rec)) {
-		ring_buffer_discard_commit(buffer, event);
+		ftrace_ring_buffer_discard_commit(buffer, event);
 		return 1;
 	}
 

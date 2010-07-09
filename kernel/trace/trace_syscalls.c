@@ -298,8 +298,8 @@ void ftrace_syscall_enter(void *ignore, struct pt_regs *regs, long id)
 {
 	struct syscall_trace_enter *entry;
 	struct syscall_metadata *sys_data;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	int size;
 	int syscall_nr;
 
@@ -320,7 +320,7 @@ void ftrace_syscall_enter(void *ignore, struct pt_regs *regs, long id)
 	if (!event)
 		return;
 
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->nr = syscall_nr;
 	syscall_get_arguments(current, regs, 0, sys_data->nb_args, entry->args);
 
@@ -333,8 +333,8 @@ void ftrace_syscall_exit(void *ignore, struct pt_regs *regs, long ret)
 {
 	struct syscall_trace_exit *entry;
 	struct syscall_metadata *sys_data;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	int syscall_nr;
 
 	syscall_nr = syscall_get_nr(current, regs);
@@ -352,7 +352,7 @@ void ftrace_syscall_exit(void *ignore, struct pt_regs *regs, long ret)
 	if (!event)
 		return;
 
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->nr = syscall_nr;
 	entry->ret = syscall_get_return_value(current, regs);
 

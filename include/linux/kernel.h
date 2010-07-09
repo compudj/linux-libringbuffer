@@ -485,7 +485,7 @@ extern int hex_to_bin(char ch);
  *
  * Most likely, you want to use tracing_on/tracing_off.
  */
-#ifdef CONFIG_RING_BUFFER
+#ifdef CONFIG_FTRACE_RING_BUFFER
 void tracing_on(void);
 void tracing_off(void);
 /* trace_off_permanent stops recording with no way to bring it back */

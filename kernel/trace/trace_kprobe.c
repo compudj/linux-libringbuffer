@@ -1264,8 +1264,8 @@ static __kprobes void kprobe_trace_func(struct kprobe *kp, struct pt_regs *regs)
 {
 	struct trace_probe *tp = container_of(kp, struct trace_probe, rp.kp);
 	struct kprobe_trace_entry_head *entry;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	int size, dsize, pc;
 	unsigned long irq_flags;
 	struct ftrace_event_call *call = &tp->call;
@@ -1283,7 +1283,7 @@ static __kprobes void kprobe_trace_func(struct kprobe *kp, struct pt_regs *regs)
 	if (!event)
 		return;
 
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->ip = (unsigned long)kp->addr;
 	store_trace_args(sizeof(*entry), tp, regs, (u8 *)&entry[1], dsize);
 
@@ -1297,8 +1297,8 @@ static __kprobes void kretprobe_trace_func(struct kretprobe_instance *ri,
 {
 	struct trace_probe *tp = container_of(ri->rp, struct trace_probe, rp);
 	struct kretprobe_trace_entry_head *entry;
-	struct ring_buffer_event *event;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
 	int size, pc, dsize;
 	unsigned long irq_flags;
 	struct ftrace_event_call *call = &tp->call;
@@ -1314,7 +1314,7 @@ static __kprobes void kretprobe_trace_func(struct kretprobe_instance *ri,
 	if (!event)
 		return;
 
-	entry = ring_buffer_event_data(event);
+	entry = ftrace_ring_buffer_event_data(event);
 	entry->func = (unsigned long)tp->rp.kp.addr;
 	entry->ret_ip = (unsigned long)ri->ret_addr;
 	store_trace_args(sizeof(*entry), tp, regs, (u8 *)&entry[1], dsize);

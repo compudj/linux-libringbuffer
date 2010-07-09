@@ -32,9 +32,9 @@ probe_likely_condition(struct ftrace_branch_data *f, int val, int expect)
 {
 	struct ftrace_event_call *call = &event_branch;
 	struct trace_array *tr = branch_tracer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct trace_branch *entry;
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer *buffer;
 	unsigned long flags;
 	int cpu, pc;
 	const char *p;
@@ -61,7 +61,7 @@ probe_likely_condition(struct ftrace_branch_data *f, int val, int expect)
 	if (!event)
 		goto out;
 
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 
 	/* Strip off the path, only save the file */
 	p = f->file + strlen(f->file);
@@ -77,7 +77,7 @@ probe_likely_condition(struct ftrace_branch_data *f, int val, int expect)
 	entry->correct = val == expect;
 
 	if (!filter_check_discard(call, entry, buffer, event))
-		ring_buffer_unlock_commit(buffer, event);
+		ftrace_ring_buffer_unlock_commit(buffer, event);
 
  out:
 	atomic_dec(&tr->data[cpu]->disabled);

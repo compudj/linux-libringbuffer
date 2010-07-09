@@ -3,7 +3,7 @@
  *
  * Copyright (C) 2008 Steven Rostedt <srostedt@redhat.com>
  */
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 #include <linux/trace_clock.h>
 #include <linux/ftrace_irq.h>
 #include <linux/spinlock.h>
@@ -27,7 +27,7 @@
 /*
  * The ring buffer header is special. We must manually up keep it.
  */
-int ring_buffer_print_entry_header(struct trace_seq *s)
+int ftrace_ring_buffer_print_entry_header(struct trace_seq *s)
 {
 	int ret;
 
@@ -153,7 +153,7 @@ enum {
 	RB_BUFFERS_DISABLED	= 1 << RB_BUFFERS_DISABLED_BIT,
 };
 
-static unsigned long ring_buffer_flags __read_mostly = RB_BUFFERS_ON;
+static unsigned long ftrace_ring_buffer_flags __read_mostly = RB_BUFFERS_ON;
 
 #define BUF_PAGE_HDR_SIZE offsetof(struct buffer_data_page, data)
 
@@ -165,7 +165,7 @@ static unsigned long ring_buffer_flags __read_mostly = RB_BUFFERS_ON;
  */
 void tracing_on(void)
 {
-	set_bit(RB_BUFFERS_ON_BIT, &ring_buffer_flags);
+	set_bit(RB_BUFFERS_ON_BIT, &ftrace_ring_buffer_flags);
 }
 EXPORT_SYMBOL_GPL(tracing_on);
 
@@ -179,7 +179,7 @@ EXPORT_SYMBOL_GPL(tracing_on);
  */
 void tracing_off(void)
 {
-	clear_bit(RB_BUFFERS_ON_BIT, &ring_buffer_flags);
+	clear_bit(RB_BUFFERS_ON_BIT, &ftrace_ring_buffer_flags);
 }
 EXPORT_SYMBOL_GPL(tracing_off);
 
@@ -191,7 +191,7 @@ EXPORT_SYMBOL_GPL(tracing_off);
  */
 void tracing_off_permanent(void)
 {
-	set_bit(RB_BUFFERS_DISABLED_BIT, &ring_buffer_flags);
+	set_bit(RB_BUFFERS_DISABLED_BIT, &ftrace_ring_buffer_flags);
 }
 
 /**
@@ -199,11 +199,11 @@ void tracing_off_permanent(void)
  */
 int tracing_is_on(void)
 {
-	return ring_buffer_flags == RB_BUFFERS_ON;
+	return ftrace_ring_buffer_flags == RB_BUFFERS_ON;
 }
 EXPORT_SYMBOL_GPL(tracing_is_on);
 
-#define RB_EVNT_HDR_SIZE (offsetof(struct ring_buffer_event, array))
+#define RB_EVNT_HDR_SIZE (offsetof(struct ftrace_ring_buffer_event, array))
 #define RB_ALIGNMENT		4U
 #define RB_MAX_SMALL_DATA	(RB_ALIGNMENT * RINGBUF_TYPE_DATA_TYPE_LEN_MAX)
 #define RB_EVNT_MIN_SIZE	8U	/* two 32bit words */
@@ -224,12 +224,12 @@ enum {
 	RB_LEN_TIME_STAMP = 16,
 };
 
-static inline int rb_null_event(struct ring_buffer_event *event)
+static inline int rb_null_event(struct ftrace_ring_buffer_event *event)
 {
 	return event->type_len == RINGBUF_TYPE_PADDING && !event->time_delta;
 }
 
-static void rb_event_set_padding(struct ring_buffer_event *event)
+static void rb_event_set_padding(struct ftrace_ring_buffer_event *event)
 {
 	/* padding has a NULL time_delta */
 	event->type_len = RINGBUF_TYPE_PADDING;
@@ -237,7 +237,7 @@ static void rb_event_set_padding(struct ring_buffer_event *event)
 }
 
 static unsigned
-rb_event_data_length(struct ring_buffer_event *event)
+rb_event_data_length(struct ftrace_ring_buffer_event *event)
 {
 	unsigned length;
 
@@ -250,7 +250,7 @@ rb_event_data_length(struct ring_buffer_event *event)
 
 /* inline for ring buffer fast paths */
 static unsigned
-rb_event_length(struct ring_buffer_event *event)
+rb_event_length(struct ftrace_ring_buffer_event *event)
 {
 	switch (event->type_len) {
 	case RINGBUF_TYPE_PADDING:
@@ -275,10 +275,10 @@ rb_event_length(struct ring_buffer_event *event)
 }
 
 /**
- * ring_buffer_event_length - return the length of the event
+ * ftrace_ring_buffer_event_length - return the length of the event
  * @event: the event to get the length of
  */
-unsigned ring_buffer_event_length(struct ring_buffer_event *event)
+unsigned ftrace_ring_buffer_event_length(struct ftrace_ring_buffer_event *event)
 {
 	unsigned length = rb_event_length(event);
 	if (event->type_len > RINGBUF_TYPE_DATA_TYPE_LEN_MAX)
@@ -288,11 +288,11 @@ unsigned ring_buffer_event_length(struct ring_buffer_event *event)
                 length -= sizeof(event->array[0]);
 	return length;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_event_length);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_event_length);
 
 /* inline for ring buffer fast paths */
 static void *
-rb_event_data(struct ring_buffer_event *event)
+rb_event_data(struct ftrace_ring_buffer_event *event)
 {
 	BUG_ON(event->type_len > RINGBUF_TYPE_DATA_TYPE_LEN_MAX);
 	/* If length is in len field, then array[0] has the data */
@@ -303,14 +303,14 @@ rb_event_data(struct ring_buffer_event *event)
 }
 
 /**
- * ring_buffer_event_data - return the data of the event
+ * ftrace_ring_buffer_event_data - return the data of the event
  * @event: the event to get the data from
  */
-void *ring_buffer_event_data(struct ring_buffer_event *event)
+void *ftrace_ring_buffer_event_data(struct ftrace_ring_buffer_event *event)
 {
 	return rb_event_data(event);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_event_data);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_event_data);
 
 #define for_each_buffer_cpu(buffer, cpu)		\
 	for_each_cpu(cpu, buffer->cpumask)
@@ -368,12 +368,12 @@ static void rb_init_page(struct buffer_data_page *bpage)
 }
 
 /**
- * ring_buffer_page_len - the size of data on the page.
+ * ftrace_ring_buffer_page_len - the size of data on the page.
  * @page: The page to read
  *
  * Returns the amount of data on the page, including buffer page header.
  */
-size_t ring_buffer_page_len(void *page)
+size_t ftrace_ring_buffer_page_len(void *page)
 {
 	return local_read(&((struct buffer_data_page *)page)->commit)
 		+ BUF_PAGE_HDR_SIZE;
@@ -407,7 +407,7 @@ static inline int test_time_stamp(u64 delta)
 /* Max number of timestamps that can fit on a page */
 #define RB_TIMESTAMPS_PER_PAGE	(BUF_PAGE_SIZE / RB_LEN_TIME_STAMP)
 
-int ring_buffer_print_page_header(struct trace_seq *s)
+int ftrace_ring_buffer_print_page_header(struct trace_seq *s)
 {
 	struct buffer_data_page field;
 	int ret;
@@ -441,9 +441,9 @@ int ring_buffer_print_page_header(struct trace_seq *s)
 /*
  * head_page == tail_page && head == tail then buffer is empty.
  */
-struct ring_buffer_per_cpu {
+struct ftrace_ring_buffer_per_cpu {
 	int				cpu;
-	struct ring_buffer		*buffer;
+	struct ftrace_ring_buffer		*buffer;
 	spinlock_t			reader_lock;	/* serialize readers */
 	arch_spinlock_t			lock;
 	struct lock_class_key		lock_key;
@@ -465,7 +465,7 @@ struct ring_buffer_per_cpu {
 	atomic_t			record_disabled;
 };
 
-struct ring_buffer {
+struct ftrace_ring_buffer {
 	unsigned			pages;
 	unsigned			flags;
 	int				cpus;
@@ -476,7 +476,7 @@ struct ring_buffer {
 
 	struct mutex			mutex;
 
-	struct ring_buffer_per_cpu	**buffers;
+	struct ftrace_ring_buffer_per_cpu	**buffers;
 
 #ifdef CONFIG_HOTPLUG_CPU
 	struct notifier_block		cpu_notify;
@@ -484,8 +484,8 @@ struct ring_buffer {
 	u64				(*clock)(void);
 };
 
-struct ring_buffer_iter {
-	struct ring_buffer_per_cpu	*cpu_buffer;
+struct ftrace_ring_buffer_iter {
+	struct ftrace_ring_buffer_per_cpu	*cpu_buffer;
 	unsigned long			head;
 	struct buffer_page		*head_page;
 	struct buffer_page		*cache_reader_page;
@@ -493,13 +493,13 @@ struct ring_buffer_iter {
 	u64				read_stamp;
 };
 
-/* buffer may be either ring_buffer or ring_buffer_per_cpu */
+/* buffer may be either ftrace_ring_buffer or ftrace_ring_buffer_per_cpu */
 #define RB_WARN_ON(b, cond)						\
 	({								\
 		int _____ret = unlikely(cond);				\
 		if (_____ret) {						\
-			if (__same_type(*(b), struct ring_buffer_per_cpu)) { \
-				struct ring_buffer_per_cpu *__b =	\
+			if (__same_type(*(b), struct ftrace_ring_buffer_per_cpu)) { \
+				struct ftrace_ring_buffer_per_cpu *__b =	\
 					(void *)b;			\
 				atomic_inc(&__b->buffer->record_disabled); \
 			} else						\
@@ -512,13 +512,13 @@ struct ring_buffer_iter {
 /* Up this if you want to test the TIME_EXTENTS and normalization */
 #define DEBUG_SHIFT 0
 
-static inline u64 rb_time_stamp(struct ring_buffer *buffer)
+static inline u64 rb_time_stamp(struct ftrace_ring_buffer *buffer)
 {
 	/* shift to debug/test normalization and TIME_EXTENTS */
 	return buffer->clock() << DEBUG_SHIFT;
 }
 
-u64 ring_buffer_time_stamp(struct ring_buffer *buffer, int cpu)
+u64 ftrace_ring_buffer_time_stamp(struct ftrace_ring_buffer *buffer, int cpu)
 {
 	u64 time;
 
@@ -528,15 +528,15 @@ u64 ring_buffer_time_stamp(struct ring_buffer *buffer, int cpu)
 
 	return time;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_time_stamp);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_time_stamp);
 
-void ring_buffer_normalize_time_stamp(struct ring_buffer *buffer,
+void ftrace_ring_buffer_normalize_time_stamp(struct ftrace_ring_buffer *buffer,
 				      int cpu, u64 *ts)
 {
 	/* Just stupid testing the normalize function and deltas */
 	*ts >>= DEBUG_SHIFT;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_normalize_time_stamp);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_normalize_time_stamp);
 
 /*
  * Making the ring buffer lockless makes things tricky.
@@ -636,7 +636,7 @@ static struct list_head *rb_list_head(struct list_head *list)
  * its flags will be non zero.
  */
 static int inline
-rb_is_head_page(struct ring_buffer_per_cpu *cpu_buffer,
+rb_is_head_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		struct buffer_page *page, struct list_head *list)
 {
 	unsigned long val;
@@ -666,7 +666,7 @@ static int rb_is_reader_page(struct buffer_page *page)
 /*
  * rb_set_list_to_head - set a list_head to be pointing to head.
  */
-static void rb_set_list_to_head(struct ring_buffer_per_cpu *cpu_buffer,
+static void rb_set_list_to_head(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 				struct list_head *list)
 {
 	unsigned long *ptr;
@@ -679,7 +679,7 @@ static void rb_set_list_to_head(struct ring_buffer_per_cpu *cpu_buffer,
 /*
  * rb_head_page_activate - sets up head page
  */
-static void rb_head_page_activate(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_head_page_activate(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct buffer_page *head;
 
@@ -704,7 +704,7 @@ static void rb_list_head_clear(struct list_head *list)
  * rb_head_page_dactivate - clears head page ptr (for free list)
  */
 static void
-rb_head_page_deactivate(struct ring_buffer_per_cpu *cpu_buffer)
+rb_head_page_deactivate(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct list_head *hd;
 
@@ -715,7 +715,7 @@ rb_head_page_deactivate(struct ring_buffer_per_cpu *cpu_buffer)
 		rb_list_head_clear(hd);
 }
 
-static int rb_head_page_set(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_head_page_set(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			    struct buffer_page *head,
 			    struct buffer_page *prev,
 			    int old_flag, int new_flag)
@@ -738,7 +738,7 @@ static int rb_head_page_set(struct ring_buffer_per_cpu *cpu_buffer,
 	return ret & RB_FLAG_MASK;
 }
 
-static int rb_head_page_set_update(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_head_page_set_update(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 				   struct buffer_page *head,
 				   struct buffer_page *prev,
 				   int old_flag)
@@ -747,7 +747,7 @@ static int rb_head_page_set_update(struct ring_buffer_per_cpu *cpu_buffer,
 				old_flag, RB_PAGE_UPDATE);
 }
 
-static int rb_head_page_set_head(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_head_page_set_head(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 				 struct buffer_page *head,
 				 struct buffer_page *prev,
 				 int old_flag)
@@ -756,7 +756,7 @@ static int rb_head_page_set_head(struct ring_buffer_per_cpu *cpu_buffer,
 				old_flag, RB_PAGE_HEAD);
 }
 
-static int rb_head_page_set_normal(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_head_page_set_normal(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 				   struct buffer_page *head,
 				   struct buffer_page *prev,
 				   int old_flag)
@@ -765,7 +765,7 @@ static int rb_head_page_set_normal(struct ring_buffer_per_cpu *cpu_buffer,
 				old_flag, RB_PAGE_NORMAL);
 }
 
-static inline void rb_inc_page(struct ring_buffer_per_cpu *cpu_buffer,
+static inline void rb_inc_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			       struct buffer_page **bpage)
 {
 	struct list_head *p = rb_list_head((*bpage)->list.next);
@@ -774,7 +774,7 @@ static inline void rb_inc_page(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 static struct buffer_page *
-rb_set_head_page(struct ring_buffer_per_cpu *cpu_buffer)
+rb_set_head_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct buffer_page *head;
 	struct buffer_page *page;
@@ -831,7 +831,7 @@ static int rb_head_page_replace(struct buffer_page *old,
  *
  * Returns 1 if moved tail page, 0 if someone else did.
  */
-static int rb_tail_page_update(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_tail_page_update(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			       struct buffer_page *tail_page,
 			       struct buffer_page *next_page)
 {
@@ -898,7 +898,7 @@ static int rb_tail_page_update(struct ring_buffer_per_cpu *cpu_buffer,
 	return ret;
 }
 
-static int rb_check_bpage(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_check_bpage(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			  struct buffer_page *bpage)
 {
 	unsigned long val = (unsigned long)bpage;
@@ -912,7 +912,7 @@ static int rb_check_bpage(struct ring_buffer_per_cpu *cpu_buffer,
 /**
  * rb_check_list - make sure a pointer to a list has the last bits zero
  */
-static int rb_check_list(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_check_list(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			 struct list_head *list)
 {
 	if (RB_WARN_ON(cpu_buffer, rb_list_head(list->prev) != list->prev))
@@ -929,7 +929,7 @@ static int rb_check_list(struct ring_buffer_per_cpu *cpu_buffer,
  * As a safety measure we check to make sure the data pages have not
  * been corrupted.
  */
-static int rb_check_pages(struct ring_buffer_per_cpu *cpu_buffer)
+static int rb_check_pages(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct list_head *head = cpu_buffer->pages;
 	struct buffer_page *bpage, *tmp;
@@ -960,7 +960,7 @@ static int rb_check_pages(struct ring_buffer_per_cpu *cpu_buffer)
 	return 0;
 }
 
-static int rb_allocate_pages(struct ring_buffer_per_cpu *cpu_buffer,
+static int rb_allocate_pages(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 			     unsigned nr_pages)
 {
 	struct buffer_page *bpage, *tmp;
@@ -1007,10 +1007,10 @@ static int rb_allocate_pages(struct ring_buffer_per_cpu *cpu_buffer,
 	return -ENOMEM;
 }
 
-static struct ring_buffer_per_cpu *
-rb_allocate_cpu_buffer(struct ring_buffer *buffer, int cpu)
+static struct ftrace_ring_buffer_per_cpu *
+rb_allocate_cpu_buffer(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	struct buffer_page *bpage;
 	unsigned long addr;
 	int ret;
@@ -1062,7 +1062,7 @@ rb_allocate_cpu_buffer(struct ring_buffer *buffer, int cpu)
 	return NULL;
 }
 
-static void rb_free_cpu_buffer(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_free_cpu_buffer(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct list_head *head = cpu_buffer->pages;
 	struct buffer_page *bpage, *tmp;
@@ -1089,7 +1089,7 @@ static int rb_cpu_notify(struct notifier_block *self,
 #endif
 
 /**
- * ring_buffer_alloc - allocate a new ring_buffer
+ * ftrace_ring_buffer_alloc - allocate a new ftrace_ring_buffer
  * @size: the size in bytes per cpu that is needed.
  * @flags: attributes to set for the ring buffer.
  *
@@ -1098,10 +1098,10 @@ static int rb_cpu_notify(struct notifier_block *self,
  * when the buffer wraps. If this flag is not set, the buffer will
  * drop data when the tail hits the head.
  */
-struct ring_buffer *__ring_buffer_alloc(unsigned long size, unsigned flags,
+struct ftrace_ring_buffer *__ftrace_ring_buffer_alloc(unsigned long size, unsigned flags,
 					struct lock_class_key *key)
 {
-	struct ring_buffer *buffer;
+	struct ftrace_ring_buffer *buffer;
 	int bsize;
 	int cpu;
 
@@ -1175,14 +1175,14 @@ struct ring_buffer *__ring_buffer_alloc(unsigned long size, unsigned flags,
 	kfree(buffer);
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(__ring_buffer_alloc);
+EXPORT_SYMBOL_GPL(__ftrace_ring_buffer_alloc);
 
 /**
- * ring_buffer_free - free a ring buffer.
+ * ftrace_ring_buffer_free - free a ring buffer.
  * @buffer: the buffer to free.
  */
 void
-ring_buffer_free(struct ring_buffer *buffer)
+ftrace_ring_buffer_free(struct ftrace_ring_buffer *buffer)
 {
 	int cpu;
 
@@ -1202,18 +1202,18 @@ ring_buffer_free(struct ring_buffer *buffer)
 
 	kfree(buffer);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_free);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_free);
 
-void ring_buffer_set_clock(struct ring_buffer *buffer,
+void ftrace_ring_buffer_set_clock(struct ftrace_ring_buffer *buffer,
 			   u64 (*clock)(void))
 {
 	buffer->clock = clock;
 }
 
-static void rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer);
+static void rb_reset_cpu(struct ftrace_ring_buffer_per_cpu *cpu_buffer);
 
 static void
-rb_remove_pages(struct ring_buffer_per_cpu *cpu_buffer, unsigned nr_pages)
+rb_remove_pages(struct ftrace_ring_buffer_per_cpu *cpu_buffer, unsigned nr_pages)
 {
 	struct buffer_page *bpage;
 	struct list_head *p;
@@ -1241,7 +1241,7 @@ out:
 }
 
 static void
-rb_insert_pages(struct ring_buffer_per_cpu *cpu_buffer,
+rb_insert_pages(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		struct list_head *pages, unsigned nr_pages)
 {
 	struct buffer_page *bpage;
@@ -1267,7 +1267,7 @@ out:
 }
 
 /**
- * ring_buffer_resize - resize the ring buffer
+ * ftrace_ring_buffer_resize - resize the ring buffer
  * @buffer: the buffer to resize.
  * @size: the new size.
  *
@@ -1275,9 +1275,9 @@ out:
  *
  * Returns -1 on failure.
  */
-int ring_buffer_resize(struct ring_buffer *buffer, unsigned long size)
+int ftrace_ring_buffer_resize(struct ftrace_ring_buffer *buffer, unsigned long size)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned nr_pages, rm_pages, new_pages;
 	struct buffer_page *bpage, *tmp;
 	unsigned long buffer_size;
@@ -1393,7 +1393,7 @@ int ring_buffer_resize(struct ring_buffer *buffer, unsigned long size)
 	atomic_dec(&buffer->record_disabled);
 	return -1;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_resize);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_resize);
 
 static inline void *
 __rb_data_page_index(struct buffer_data_page *bpage, unsigned index)
@@ -1406,15 +1406,15 @@ static inline void *__rb_page_index(struct buffer_page *bpage, unsigned index)
 	return bpage->page->data + index;
 }
 
-static inline struct ring_buffer_event *
-rb_reader_event(struct ring_buffer_per_cpu *cpu_buffer)
+static inline struct ftrace_ring_buffer_event *
+rb_reader_event(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	return __rb_page_index(cpu_buffer->reader_page,
 			       cpu_buffer->reader_page->read);
 }
 
-static inline struct ring_buffer_event *
-rb_iter_head_event(struct ring_buffer_iter *iter)
+static inline struct ftrace_ring_buffer_event *
+rb_iter_head_event(struct ftrace_ring_buffer_iter *iter)
 {
 	return __rb_page_index(iter->head_page, iter->head);
 }
@@ -1441,13 +1441,13 @@ static inline unsigned rb_page_size(struct buffer_page *bpage)
 }
 
 static inline unsigned
-rb_commit_index(struct ring_buffer_per_cpu *cpu_buffer)
+rb_commit_index(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	return rb_page_commit(cpu_buffer->commit_page);
 }
 
 static inline unsigned
-rb_event_index(struct ring_buffer_event *event)
+rb_event_index(struct ftrace_ring_buffer_event *event)
 {
 	unsigned long addr = (unsigned long)event;
 
@@ -1455,8 +1455,8 @@ rb_event_index(struct ring_buffer_event *event)
 }
 
 static inline int
-rb_event_is_commit(struct ring_buffer_per_cpu *cpu_buffer,
-		   struct ring_buffer_event *event)
+rb_event_is_commit(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		   struct ftrace_ring_buffer_event *event)
 {
 	unsigned long addr = (unsigned long)event;
 	unsigned long index;
@@ -1469,7 +1469,7 @@ rb_event_is_commit(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 static void
-rb_set_commit_to_write(struct ring_buffer_per_cpu *cpu_buffer)
+rb_set_commit_to_write(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	unsigned long max_count;
 
@@ -1521,15 +1521,15 @@ rb_set_commit_to_write(struct ring_buffer_per_cpu *cpu_buffer)
 		goto again;
 }
 
-static void rb_reset_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_reset_reader_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	cpu_buffer->read_stamp = cpu_buffer->reader_page->page->time_stamp;
 	cpu_buffer->reader_page->read = 0;
 }
 
-static void rb_inc_iter(struct ring_buffer_iter *iter)
+static void rb_inc_iter(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
 
 	/*
 	 * The iterator could be on the reader page (it starts there).
@@ -1547,7 +1547,7 @@ static void rb_inc_iter(struct ring_buffer_iter *iter)
 }
 
 /**
- * ring_buffer_update_event - update event type and data
+ * ftrace_ring_buffer_update_event - update event type and data
  * @event: the even to update
  * @type: the type of event
  * @length: the size of the event field in the ring buffer
@@ -1558,7 +1558,7 @@ static void rb_inc_iter(struct ring_buffer_iter *iter)
  * data field.
  */
 static void
-rb_update_event(struct ring_buffer_event *event,
+rb_update_event(struct ftrace_ring_buffer_event *event,
 			 unsigned type, unsigned length)
 {
 	event->type_len = type;
@@ -1590,7 +1590,7 @@ rb_update_event(struct ring_buffer_event *event,
  *          -1 on error
  */
 static int
-rb_handle_head_page(struct ring_buffer_per_cpu *cpu_buffer,
+rb_handle_head_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		    struct buffer_page *tail_page,
 		    struct buffer_page *next_page)
 {
@@ -1741,7 +1741,7 @@ rb_handle_head_page(struct ring_buffer_per_cpu *cpu_buffer,
 
 static unsigned rb_calculate_event_length(unsigned length)
 {
-	struct ring_buffer_event event; /* Used only for sizeof array */
+	struct ftrace_ring_buffer_event event; /* Used only for sizeof array */
 
 	/* zero length can cause confusions */
 	if (!length)
@@ -1757,11 +1757,11 @@ static unsigned rb_calculate_event_length(unsigned length)
 }
 
 static inline void
-rb_reset_tail(struct ring_buffer_per_cpu *cpu_buffer,
+rb_reset_tail(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 	      struct buffer_page *tail_page,
 	      unsigned long tail, unsigned long length)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 
 	/*
 	 * Only the event that crossed the page boundary
@@ -1823,13 +1823,13 @@ rb_reset_tail(struct ring_buffer_per_cpu *cpu_buffer,
 	local_sub(length, &tail_page->write);
 }
 
-static struct ring_buffer_event *
-rb_move_tail(struct ring_buffer_per_cpu *cpu_buffer,
+static struct ftrace_ring_buffer_event *
+rb_move_tail(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 	     unsigned long length, unsigned long tail,
 	     struct buffer_page *tail_page, u64 *ts)
 {
 	struct buffer_page *commit_page = cpu_buffer->commit_page;
-	struct ring_buffer *buffer = cpu_buffer->buffer;
+	struct ftrace_ring_buffer *buffer = cpu_buffer->buffer;
 	struct buffer_page *next_page;
 	int ret;
 
@@ -1927,12 +1927,12 @@ rb_move_tail(struct ring_buffer_per_cpu *cpu_buffer,
 	return NULL;
 }
 
-static struct ring_buffer_event *
-__rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
+static struct ftrace_ring_buffer_event *
+__rb_reserve_next(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		  unsigned type, unsigned long length, u64 *ts)
 {
 	struct buffer_page *tail_page;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	unsigned long tail, write;
 
 	tail_page = cpu_buffer->tail_page;
@@ -1968,8 +1968,8 @@ __rb_reserve_next(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 static inline int
-rb_try_to_discard(struct ring_buffer_per_cpu *cpu_buffer,
-		  struct ring_buffer_event *event)
+rb_try_to_discard(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		  struct ftrace_ring_buffer_event *event)
 {
 	unsigned long new_index, old_index;
 	struct buffer_page *bpage;
@@ -2004,10 +2004,10 @@ rb_try_to_discard(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 static int
-rb_add_time_stamp(struct ring_buffer_per_cpu *cpu_buffer,
+rb_add_time_stamp(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		  u64 *ts, u64 *delta)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	int ret;
 
 	WARN_ONCE(*delta > (1ULL << 59),
@@ -2066,13 +2066,13 @@ rb_add_time_stamp(struct ring_buffer_per_cpu *cpu_buffer,
 	return ret;
 }
 
-static void rb_start_commit(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_start_commit(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	local_inc(&cpu_buffer->committing);
 	local_inc(&cpu_buffer->commits);
 }
 
-static void rb_end_commit(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_end_commit(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	unsigned long commits;
 
@@ -2104,19 +2104,19 @@ static void rb_end_commit(struct ring_buffer_per_cpu *cpu_buffer)
 	}
 }
 
-static struct ring_buffer_event *
-rb_reserve_next_event(struct ring_buffer *buffer,
-		      struct ring_buffer_per_cpu *cpu_buffer,
+static struct ftrace_ring_buffer_event *
+rb_reserve_next_event(struct ftrace_ring_buffer *buffer,
+		      struct ftrace_ring_buffer_per_cpu *cpu_buffer,
 		      unsigned long length)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	u64 ts, delta = 0;
 	int commit = 0;
 	int nr_loops = 0;
 
 	rb_start_commit(cpu_buffer);
 
-#ifdef CONFIG_RING_BUFFER_ALLOW_SWAP
+#ifdef CONFIG_FTRACE_RING_BUFFER_ALLOW_SWAP
 	/*
 	 * Due to the ability to swap a cpu buffer from a buffer
 	 * it is possible it was swapped before we committed.
@@ -2243,28 +2243,28 @@ static void trace_recursive_unlock(void)
 #endif
 
 /**
- * ring_buffer_lock_reserve - reserve a part of the buffer
+ * ftrace_ring_buffer_lock_reserve - reserve a part of the buffer
  * @buffer: the ring buffer to reserve from
  * @length: the length of the data to reserve (excluding event header)
  *
  * Returns a reseverd event on the ring buffer to copy directly to.
  * The user of this interface will need to get the body to write into
- * and can use the ring_buffer_event_data() interface.
+ * and can use the ftrace_ring_buffer_event_data() interface.
  *
  * The length is the length of the data needed, not the event length
  * which also includes the event header.
  *
- * Must be paired with ring_buffer_unlock_commit, unless NULL is returned.
+ * Must be paired with ftrace_ring_buffer_unlock_commit, unless NULL is returned.
  * If NULL is returned, then nothing has been allocated or locked.
  */
-struct ring_buffer_event *
-ring_buffer_lock_reserve(struct ring_buffer *buffer, unsigned long length)
+struct ftrace_ring_buffer_event *
+ftrace_ring_buffer_lock_reserve(struct ftrace_ring_buffer *buffer, unsigned long length)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
 	int cpu;
 
-	if (ring_buffer_flags != RB_BUFFERS_ON)
+	if (ftrace_ring_buffer_flags != RB_BUFFERS_ON)
 		return NULL;
 
 	/* If we are tracing schedule, we don't want to recurse */
@@ -2302,11 +2302,11 @@ ring_buffer_lock_reserve(struct ring_buffer *buffer, unsigned long length)
 	preempt_enable_notrace();
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_lock_reserve);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_lock_reserve);
 
 static void
-rb_update_write_stamp(struct ring_buffer_per_cpu *cpu_buffer,
-		      struct ring_buffer_event *event)
+rb_update_write_stamp(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		      struct ftrace_ring_buffer_event *event)
 {
 	/*
 	 * The event first in the commit queue updates the
@@ -2316,8 +2316,8 @@ rb_update_write_stamp(struct ring_buffer_per_cpu *cpu_buffer,
 		cpu_buffer->write_stamp += event->time_delta;
 }
 
-static void rb_commit(struct ring_buffer_per_cpu *cpu_buffer,
-		      struct ring_buffer_event *event)
+static void rb_commit(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		      struct ftrace_ring_buffer_event *event)
 {
 	local_inc(&cpu_buffer->entries);
 	rb_update_write_stamp(cpu_buffer, event);
@@ -2325,18 +2325,18 @@ static void rb_commit(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 /**
- * ring_buffer_unlock_commit - commit a reserved
+ * ftrace_ring_buffer_unlock_commit - commit a reserved
  * @buffer: The buffer to commit to
  * @event: The event pointer to commit.
  *
  * This commits the data to the ring buffer, and releases any locks held.
  *
- * Must be paired with ring_buffer_lock_reserve.
+ * Must be paired with ftrace_ring_buffer_lock_reserve.
  */
-int ring_buffer_unlock_commit(struct ring_buffer *buffer,
-			      struct ring_buffer_event *event)
+int ftrace_ring_buffer_unlock_commit(struct ftrace_ring_buffer *buffer,
+			      struct ftrace_ring_buffer_event *event)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	int cpu = raw_smp_processor_id();
 
 	cpu_buffer = buffer->buffers[cpu];
@@ -2349,9 +2349,9 @@ int ring_buffer_unlock_commit(struct ring_buffer *buffer,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_unlock_commit);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_unlock_commit);
 
-static inline void rb_event_discard(struct ring_buffer_event *event)
+static inline void rb_event_discard(struct ftrace_ring_buffer_event *event)
 {
 	/* array[0] holds the actual length for the discarded event */
 	event->array[0] = rb_event_data_length(event) - RB_EVNT_HDR_SIZE;
@@ -2368,8 +2368,8 @@ static inline void rb_event_discard(struct ring_buffer_event *event)
  * takes place.
  */
 static inline void
-rb_decrement_entry(struct ring_buffer_per_cpu *cpu_buffer,
-		   struct ring_buffer_event *event)
+rb_decrement_entry(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		   struct ftrace_ring_buffer_event *event)
 {
 	unsigned long addr = (unsigned long)event;
 	struct buffer_page *bpage = cpu_buffer->commit_page;
@@ -2402,7 +2402,7 @@ rb_decrement_entry(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 /**
- * ring_buffer_commit_discard - discard an event that has not been committed
+ * ftrace_ring_buffer_commit_discard - discard an event that has not been committed
  * @buffer: the ring buffer
  * @event: non committed event to discard
  *
@@ -2417,13 +2417,13 @@ rb_decrement_entry(struct ring_buffer_per_cpu *cpu_buffer,
  * If another event has been added behind it, it will set the event
  * up as discarded, and perform the commit.
  *
- * If this function is called, do not call ring_buffer_unlock_commit on
+ * If this function is called, do not call ftrace_ring_buffer_unlock_commit on
  * the event.
  */
-void ring_buffer_discard_commit(struct ring_buffer *buffer,
-				struct ring_buffer_event *event)
+void ftrace_ring_buffer_discard_commit(struct ftrace_ring_buffer *buffer,
+				struct ftrace_ring_buffer_event *event)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	int cpu;
 
 	/* The event is discarded regardless */
@@ -2456,32 +2456,32 @@ void ring_buffer_discard_commit(struct ring_buffer *buffer,
 	preempt_enable_notrace();
 
 }
-EXPORT_SYMBOL_GPL(ring_buffer_discard_commit);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_discard_commit);
 
 /**
- * ring_buffer_write - write data to the buffer without reserving
+ * ftrace_ring_buffer_write - write data to the buffer without reserving
  * @buffer: The ring buffer to write to.
  * @length: The length of the data being written (excluding the event header)
  * @data: The data to write to the buffer.
  *
- * This is like ring_buffer_lock_reserve and ring_buffer_unlock_commit as
+ * This is like ftrace_ring_buffer_lock_reserve and ftrace_ring_buffer_unlock_commit as
  * one function. If you already have the data to write to the buffer, it
  * may be easier to simply call this function.
  *
- * Note, like ring_buffer_lock_reserve, the length is the length of the data
+ * Note, like ftrace_ring_buffer_lock_reserve, the length is the length of the data
  * and not the length of the event which would hold the header.
  */
-int ring_buffer_write(struct ring_buffer *buffer,
+int ftrace_ring_buffer_write(struct ftrace_ring_buffer *buffer,
 			unsigned long length,
 			void *data)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
 	void *body;
 	int ret = -EBUSY;
 	int cpu;
 
-	if (ring_buffer_flags != RB_BUFFERS_ON)
+	if (ftrace_ring_buffer_flags != RB_BUFFERS_ON)
 		return -EBUSY;
 
 	preempt_disable_notrace();
@@ -2518,9 +2518,9 @@ int ring_buffer_write(struct ring_buffer *buffer,
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_write);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_write);
 
-static int rb_per_cpu_empty(struct ring_buffer_per_cpu *cpu_buffer)
+static int rb_per_cpu_empty(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct buffer_page *reader = cpu_buffer->reader_page;
 	struct buffer_page *head = rb_set_head_page(cpu_buffer);
@@ -2537,7 +2537,7 @@ static int rb_per_cpu_empty(struct ring_buffer_per_cpu *cpu_buffer)
 }
 
 /**
- * ring_buffer_record_disable - stop all writes into the buffer
+ * ftrace_ring_buffer_record_disable - stop all writes into the buffer
  * @buffer: The ring buffer to stop writes to.
  *
  * This prevents all writes to the buffer. Any attempt to write
@@ -2545,27 +2545,27 @@ static int rb_per_cpu_empty(struct ring_buffer_per_cpu *cpu_buffer)
  *
  * The caller should call synchronize_sched() after this.
  */
-void ring_buffer_record_disable(struct ring_buffer *buffer)
+void ftrace_ring_buffer_record_disable(struct ftrace_ring_buffer *buffer)
 {
 	atomic_inc(&buffer->record_disabled);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_record_disable);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_record_disable);
 
 /**
- * ring_buffer_record_enable - enable writes to the buffer
+ * ftrace_ring_buffer_record_enable - enable writes to the buffer
  * @buffer: The ring buffer to enable writes
  *
  * Note, multiple disables will need the same number of enables
  * to truly enable the writing (much like preempt_disable).
  */
-void ring_buffer_record_enable(struct ring_buffer *buffer)
+void ftrace_ring_buffer_record_enable(struct ftrace_ring_buffer *buffer)
 {
 	atomic_dec(&buffer->record_disabled);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_record_enable);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_record_enable);
 
 /**
- * ring_buffer_record_disable_cpu - stop all writes into the cpu_buffer
+ * ftrace_ring_buffer_record_disable_cpu - stop all writes into the cpu_buffer
  * @buffer: The ring buffer to stop writes to.
  * @cpu: The CPU buffer to stop
  *
@@ -2574,9 +2574,9 @@ EXPORT_SYMBOL_GPL(ring_buffer_record_enable);
  *
  * The caller should call synchronize_sched() after this.
  */
-void ring_buffer_record_disable_cpu(struct ring_buffer *buffer, int cpu)
+void ftrace_ring_buffer_record_disable_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
 		return;
@@ -2584,19 +2584,19 @@ void ring_buffer_record_disable_cpu(struct ring_buffer *buffer, int cpu)
 	cpu_buffer = buffer->buffers[cpu];
 	atomic_inc(&cpu_buffer->record_disabled);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_record_disable_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_record_disable_cpu);
 
 /**
- * ring_buffer_record_enable_cpu - enable writes to the buffer
+ * ftrace_ring_buffer_record_enable_cpu - enable writes to the buffer
  * @buffer: The ring buffer to enable writes
  * @cpu: The CPU to enable.
  *
  * Note, multiple disables will need the same number of enables
  * to truly enable the writing (much like preempt_disable).
  */
-void ring_buffer_record_enable_cpu(struct ring_buffer *buffer, int cpu)
+void ftrace_ring_buffer_record_enable_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
 		return;
@@ -2604,16 +2604,16 @@ void ring_buffer_record_enable_cpu(struct ring_buffer *buffer, int cpu)
 	cpu_buffer = buffer->buffers[cpu];
 	atomic_dec(&cpu_buffer->record_disabled);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_record_enable_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_record_enable_cpu);
 
 /**
- * ring_buffer_entries_cpu - get the number of entries in a cpu buffer
+ * ftrace_ring_buffer_entries_cpu - get the number of entries in a cpu buffer
  * @buffer: The ring buffer
  * @cpu: The per CPU buffer to get the entries from.
  */
-unsigned long ring_buffer_entries_cpu(struct ring_buffer *buffer, int cpu)
+unsigned long ftrace_ring_buffer_entries_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long ret;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
@@ -2625,16 +2625,16 @@ unsigned long ring_buffer_entries_cpu(struct ring_buffer *buffer, int cpu)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_entries_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_entries_cpu);
 
 /**
- * ring_buffer_overrun_cpu - get the number of overruns in a cpu_buffer
+ * ftrace_ring_buffer_overrun_cpu - get the number of overruns in a cpu_buffer
  * @buffer: The ring buffer
  * @cpu: The per CPU buffer to get the number of overruns from
  */
-unsigned long ring_buffer_overrun_cpu(struct ring_buffer *buffer, int cpu)
+unsigned long ftrace_ring_buffer_overrun_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long ret;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
@@ -2645,17 +2645,17 @@ unsigned long ring_buffer_overrun_cpu(struct ring_buffer *buffer, int cpu)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_overrun_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_overrun_cpu);
 
 /**
- * ring_buffer_commit_overrun_cpu - get the number of overruns caused by commits
+ * ftrace_ring_buffer_commit_overrun_cpu - get the number of overruns caused by commits
  * @buffer: The ring buffer
  * @cpu: The per CPU buffer to get the number of overruns from
  */
 unsigned long
-ring_buffer_commit_overrun_cpu(struct ring_buffer *buffer, int cpu)
+ftrace_ring_buffer_commit_overrun_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long ret;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
@@ -2666,18 +2666,18 @@ ring_buffer_commit_overrun_cpu(struct ring_buffer *buffer, int cpu)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_commit_overrun_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_commit_overrun_cpu);
 
 /**
- * ring_buffer_entries - get the number of entries in a buffer
+ * ftrace_ring_buffer_entries - get the number of entries in a buffer
  * @buffer: The ring buffer
  *
  * Returns the total number of entries in the ring buffer
  * (all CPU entries)
  */
-unsigned long ring_buffer_entries(struct ring_buffer *buffer)
+unsigned long ftrace_ring_buffer_entries(struct ftrace_ring_buffer *buffer)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long entries = 0;
 	int cpu;
 
@@ -2690,18 +2690,18 @@ unsigned long ring_buffer_entries(struct ring_buffer *buffer)
 
 	return entries;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_entries);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_entries);
 
 /**
- * ring_buffer_overruns - get the number of overruns in buffer
+ * ftrace_ring_buffer_overruns - get the number of overruns in buffer
  * @buffer: The ring buffer
  *
  * Returns the total number of overruns in the ring buffer
  * (all CPU entries)
  */
-unsigned long ring_buffer_overruns(struct ring_buffer *buffer)
+unsigned long ftrace_ring_buffer_overruns(struct ftrace_ring_buffer *buffer)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long overruns = 0;
 	int cpu;
 
@@ -2713,11 +2713,11 @@ unsigned long ring_buffer_overruns(struct ring_buffer *buffer)
 
 	return overruns;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_overruns);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_overruns);
 
-static void rb_iter_reset(struct ring_buffer_iter *iter)
+static void rb_iter_reset(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
 
 	/* Iterator usage is expected to have record disabled */
 	if (list_empty(&cpu_buffer->reader_page->list)) {
@@ -2738,15 +2738,15 @@ static void rb_iter_reset(struct ring_buffer_iter *iter)
 }
 
 /**
- * ring_buffer_iter_reset - reset an iterator
+ * ftrace_ring_buffer_iter_reset - reset an iterator
  * @iter: The iterator to reset
  *
  * Resets the iterator, so that it will start from the beginning
  * again.
  */
-void ring_buffer_iter_reset(struct ring_buffer_iter *iter)
+void ftrace_ring_buffer_iter_reset(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long flags;
 
 	if (!iter)
@@ -2758,26 +2758,26 @@ void ring_buffer_iter_reset(struct ring_buffer_iter *iter)
 	rb_iter_reset(iter);
 	spin_unlock_irqrestore(&cpu_buffer->reader_lock, flags);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_iter_reset);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_iter_reset);
 
 /**
- * ring_buffer_iter_empty - check if an iterator has no more to read
+ * ftrace_ring_buffer_iter_empty - check if an iterator has no more to read
  * @iter: The iterator to check
  */
-int ring_buffer_iter_empty(struct ring_buffer_iter *iter)
+int ftrace_ring_buffer_iter_empty(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 
 	cpu_buffer = iter->cpu_buffer;
 
 	return iter->head_page == cpu_buffer->commit_page &&
 		iter->head == rb_commit_index(cpu_buffer);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_iter_empty);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_iter_empty);
 
 static void
-rb_update_read_stamp(struct ring_buffer_per_cpu *cpu_buffer,
-		     struct ring_buffer_event *event)
+rb_update_read_stamp(struct ftrace_ring_buffer_per_cpu *cpu_buffer,
+		     struct ftrace_ring_buffer_event *event)
 {
 	u64 delta;
 
@@ -2807,8 +2807,8 @@ rb_update_read_stamp(struct ring_buffer_per_cpu *cpu_buffer,
 }
 
 static void
-rb_update_iter_read_stamp(struct ring_buffer_iter *iter,
-			  struct ring_buffer_event *event)
+rb_update_iter_read_stamp(struct ftrace_ring_buffer_iter *iter,
+			  struct ftrace_ring_buffer_event *event)
 {
 	u64 delta;
 
@@ -2838,7 +2838,7 @@ rb_update_iter_read_stamp(struct ring_buffer_iter *iter,
 }
 
 static struct buffer_page *
-rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
+rb_get_reader_page(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	struct buffer_page *reader = NULL;
 	unsigned long overwrite;
@@ -2960,9 +2960,9 @@ rb_get_reader_page(struct ring_buffer_per_cpu *cpu_buffer)
 	return reader;
 }
 
-static void rb_advance_reader(struct ring_buffer_per_cpu *cpu_buffer)
+static void rb_advance_reader(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct buffer_page *reader;
 	unsigned length;
 
@@ -2983,11 +2983,11 @@ static void rb_advance_reader(struct ring_buffer_per_cpu *cpu_buffer)
 	cpu_buffer->reader_page->read += length;
 }
 
-static void rb_advance_iter(struct ring_buffer_iter *iter)
+static void rb_advance_iter(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer *buffer;
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
 	unsigned length;
 
 	cpu_buffer = iter->cpu_buffer;
@@ -3027,16 +3027,16 @@ static void rb_advance_iter(struct ring_buffer_iter *iter)
 		rb_advance_iter(iter);
 }
 
-static int rb_lost_events(struct ring_buffer_per_cpu *cpu_buffer)
+static int rb_lost_events(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	return cpu_buffer->lost_events;
 }
 
-static struct ring_buffer_event *
-rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
+static struct ftrace_ring_buffer_event *
+rb_buffer_peek(struct ftrace_ring_buffer_per_cpu *cpu_buffer, u64 *ts,
 	       unsigned long *lost_events)
 {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct buffer_page *reader;
 	int nr_loops = 0;
 
@@ -3083,7 +3083,7 @@ rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
 	case RINGBUF_TYPE_DATA:
 		if (ts) {
 			*ts = cpu_buffer->read_stamp + event->time_delta;
-			ring_buffer_normalize_time_stamp(cpu_buffer->buffer,
+			ftrace_ring_buffer_normalize_time_stamp(cpu_buffer->buffer,
 							 cpu_buffer->cpu, ts);
 		}
 		if (lost_events)
@@ -3096,14 +3096,14 @@ rb_buffer_peek(struct ring_buffer_per_cpu *cpu_buffer, u64 *ts,
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_peek);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_peek);
 
-static struct ring_buffer_event *
-rb_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
+static struct ftrace_ring_buffer_event *
+rb_iter_peek(struct ftrace_ring_buffer_iter *iter, u64 *ts)
 {
-	struct ring_buffer *buffer;
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
 	int nr_loops = 0;
 
 	cpu_buffer = iter->cpu_buffer;
@@ -3119,7 +3119,7 @@ rb_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 		rb_iter_reset(iter);
 
  again:
-	if (ring_buffer_iter_empty(iter))
+	if (ftrace_ring_buffer_iter_empty(iter))
 		return NULL;
 
 	/*
@@ -3165,7 +3165,7 @@ rb_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 	case RINGBUF_TYPE_DATA:
 		if (ts) {
 			*ts = iter->read_stamp + event->time_delta;
-			ring_buffer_normalize_time_stamp(buffer,
+			ftrace_ring_buffer_normalize_time_stamp(buffer,
 							 cpu_buffer->cpu, ts);
 		}
 		return event;
@@ -3176,7 +3176,7 @@ rb_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_iter_peek);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_iter_peek);
 
 static inline int rb_ok_to_lock(void)
 {
@@ -3194,7 +3194,7 @@ static inline int rb_ok_to_lock(void)
 }
 
 /**
- * ring_buffer_peek - peek at the next event to be read
+ * ftrace_ring_buffer_peek - peek at the next event to be read
  * @buffer: The ring buffer to read
  * @cpu: The cpu to peak at
  * @ts: The timestamp counter of this event.
@@ -3203,12 +3203,12 @@ static inline int rb_ok_to_lock(void)
  * This will return the event that will be read next, but does
  * not consume the data.
  */
-struct ring_buffer_event *
-ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
+struct ftrace_ring_buffer_event *
+ftrace_ring_buffer_peek(struct ftrace_ring_buffer *buffer, int cpu, u64 *ts,
 		 unsigned long *lost_events)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
+	struct ftrace_ring_buffer_event *event;
 	unsigned long flags;
 	int dolock;
 
@@ -3234,18 +3234,18 @@ ring_buffer_peek(struct ring_buffer *buffer, int cpu, u64 *ts,
 }
 
 /**
- * ring_buffer_iter_peek - peek at the next event to be read
+ * ftrace_ring_buffer_iter_peek - peek at the next event to be read
  * @iter: The ring buffer iterator
  * @ts: The timestamp counter of this event.
  *
  * This will return the event that will be read next, but does
  * not increment the iterator.
  */
-struct ring_buffer_event *
-ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
+struct ftrace_ring_buffer_event *
+ftrace_ring_buffer_iter_peek(struct ftrace_ring_buffer_iter *iter, u64 *ts)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
 	unsigned long flags;
 
  again:
@@ -3260,7 +3260,7 @@ ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
 }
 
 /**
- * ring_buffer_consume - return an event and consume it
+ * ftrace_ring_buffer_consume - return an event and consume it
  * @buffer: The ring buffer to get the next event from
  * @cpu: the cpu to read the buffer from
  * @ts: a variable to store the timestamp (may be NULL)
@@ -3270,12 +3270,12 @@ ring_buffer_iter_peek(struct ring_buffer_iter *iter, u64 *ts)
  * Meaning, that sequential reads will keep returning a different event,
  * and eventually empty the ring buffer if the producer is slower.
  */
-struct ring_buffer_event *
-ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
+struct ftrace_ring_buffer_event *
+ftrace_ring_buffer_consume(struct ftrace_ring_buffer *buffer, int cpu, u64 *ts,
 		    unsigned long *lost_events)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_event *event = NULL;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_event *event = NULL;
 	unsigned long flags;
 	int dolock;
 
@@ -3311,10 +3311,10 @@ ring_buffer_consume(struct ring_buffer *buffer, int cpu, u64 *ts,
 
 	return event;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_consume);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_consume);
 
 /**
- * ring_buffer_read_prepare - Prepare for a non consuming read of the buffer
+ * ftrace_ring_buffer_read_prepare - Prepare for a non consuming read of the buffer
  * @buffer: The ring buffer to read from
  * @cpu: The cpu buffer to iterate over
  *
@@ -3326,18 +3326,18 @@ EXPORT_SYMBOL_GPL(ring_buffer_consume);
  * corrupted. This is not a consuming read, so a producer is not
  * expected.
  *
- * After a sequence of ring_buffer_read_prepare calls, the user is
- * expected to make at least one call to ring_buffer_prepare_sync.
- * Afterwards, ring_buffer_read_start is invoked to get things going
+ * After a sequence of ftrace_ring_buffer_read_prepare calls, the user is
+ * expected to make at least one call to ftrace_ring_buffer_prepare_sync.
+ * Afterwards, ftrace_ring_buffer_read_start is invoked to get things going
  * for real.
  *
- * This overall must be paired with ring_buffer_finish.
+ * This overall must be paired with ftrace_ring_buffer_finish.
  */
-struct ring_buffer_iter *
-ring_buffer_read_prepare(struct ring_buffer *buffer, int cpu)
+struct ftrace_ring_buffer_iter *
+ftrace_ring_buffer_read_prepare(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
-	struct ring_buffer_iter *iter;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_iter *iter;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
 		return NULL;
@@ -3354,37 +3354,37 @@ ring_buffer_read_prepare(struct ring_buffer *buffer, int cpu)
 
 	return iter;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read_prepare);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read_prepare);
 
 /**
- * ring_buffer_read_prepare_sync - Synchronize a set of prepare calls
+ * ftrace_ring_buffer_read_prepare_sync - Synchronize a set of prepare calls
  *
- * All previously invoked ring_buffer_read_prepare calls to prepare
+ * All previously invoked ftrace_ring_buffer_read_prepare calls to prepare
  * iterators will be synchronized.  Afterwards, read_buffer_read_start
  * calls on those iterators are allowed.
  */
 void
-ring_buffer_read_prepare_sync(void)
+ftrace_ring_buffer_read_prepare_sync(void)
 {
 	synchronize_sched();
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read_prepare_sync);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read_prepare_sync);
 
 /**
- * ring_buffer_read_start - start a non consuming read of the buffer
- * @iter: The iterator returned by ring_buffer_read_prepare
+ * ftrace_ring_buffer_read_start - start a non consuming read of the buffer
+ * @iter: The iterator returned by ftrace_ring_buffer_read_prepare
  *
  * This finalizes the startup of an iteration through the buffer.
- * The iterator comes from a call to ring_buffer_read_prepare and
- * an intervening ring_buffer_read_prepare_sync must have been
+ * The iterator comes from a call to ftrace_ring_buffer_read_prepare and
+ * an intervening ftrace_ring_buffer_read_prepare_sync must have been
  * performed.
  *
- * Must be paired with ring_buffer_finish.
+ * Must be paired with ftrace_ring_buffer_finish.
  */
 void
-ring_buffer_read_start(struct ring_buffer_iter *iter)
+ftrace_ring_buffer_read_start(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long flags;
 
 	if (!iter)
@@ -3398,37 +3398,37 @@ ring_buffer_read_start(struct ring_buffer_iter *iter)
 	arch_spin_unlock(&cpu_buffer->lock);
 	spin_unlock_irqrestore(&cpu_buffer->reader_lock, flags);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read_start);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read_start);
 
 /**
- * ring_buffer_finish - finish reading the iterator of the buffer
- * @iter: The iterator retrieved by ring_buffer_start
+ * ftrace_ring_buffer_finish - finish reading the iterator of the buffer
+ * @iter: The iterator retrieved by ftrace_ring_buffer_start
  *
  * This re-enables the recording to the buffer, and frees the
  * iterator.
  */
 void
-ring_buffer_read_finish(struct ring_buffer_iter *iter)
+ftrace_ring_buffer_read_finish(struct ftrace_ring_buffer_iter *iter)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
 
 	atomic_dec(&cpu_buffer->record_disabled);
 	kfree(iter);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read_finish);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read_finish);
 
 /**
- * ring_buffer_read - read the next item in the ring buffer by the iterator
+ * ftrace_ring_buffer_read - read the next item in the ring buffer by the iterator
  * @iter: The ring buffer iterator
  * @ts: The time stamp of the event read.
  *
  * This reads the next event in the ring buffer and increments the iterator.
  */
-struct ring_buffer_event *
-ring_buffer_read(struct ring_buffer_iter *iter, u64 *ts)
+struct ftrace_ring_buffer_event *
+ftrace_ring_buffer_read(struct ftrace_ring_buffer_iter *iter, u64 *ts)
 {
-	struct ring_buffer_event *event;
-	struct ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
+	struct ftrace_ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = iter->cpu_buffer;
 	unsigned long flags;
 
 	spin_lock_irqsave(&cpu_buffer->reader_lock, flags);
@@ -3446,20 +3446,20 @@ ring_buffer_read(struct ring_buffer_iter *iter, u64 *ts)
 
 	return event;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read);
 
 /**
- * ring_buffer_size - return the size of the ring buffer (in bytes)
+ * ftrace_ring_buffer_size - return the size of the ring buffer (in bytes)
  * @buffer: The ring buffer.
  */
-unsigned long ring_buffer_size(struct ring_buffer *buffer)
+unsigned long ftrace_ring_buffer_size(struct ftrace_ring_buffer *buffer)
 {
 	return BUF_PAGE_SIZE * buffer->pages;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_size);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_size);
 
 static void
-rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
+rb_reset_cpu(struct ftrace_ring_buffer_per_cpu *cpu_buffer)
 {
 	rb_head_page_deactivate(cpu_buffer);
 
@@ -3497,13 +3497,13 @@ rb_reset_cpu(struct ring_buffer_per_cpu *cpu_buffer)
 }
 
 /**
- * ring_buffer_reset_cpu - reset a ring buffer per CPU buffer
+ * ftrace_ring_buffer_reset_cpu - reset a ring buffer per CPU buffer
  * @buffer: The ring buffer to reset a per cpu buffer of
  * @cpu: The CPU buffer to be reset
  */
-void ring_buffer_reset_cpu(struct ring_buffer *buffer, int cpu)
+void ftrace_ring_buffer_reset_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
 	unsigned long flags;
 
 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
@@ -3527,28 +3527,28 @@ void ring_buffer_reset_cpu(struct ring_buffer *buffer, int cpu)
 
 	atomic_dec(&cpu_buffer->record_disabled);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_reset_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_reset_cpu);
 
 /**
- * ring_buffer_reset - reset a ring buffer
+ * ftrace_ring_buffer_reset - reset a ring buffer
  * @buffer: The ring buffer to reset all cpu buffers
  */
-void ring_buffer_reset(struct ring_buffer *buffer)
+void ftrace_ring_buffer_reset(struct ftrace_ring_buffer *buffer)
 {
 	int cpu;
 
 	for_each_buffer_cpu(buffer, cpu)
-		ring_buffer_reset_cpu(buffer, cpu);
+		ftrace_ring_buffer_reset_cpu(buffer, cpu);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_reset);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_reset);
 
 /**
  * rind_buffer_empty - is the ring buffer empty?
  * @buffer: The ring buffer to test
  */
-int ring_buffer_empty(struct ring_buffer *buffer)
+int ftrace_ring_buffer_empty(struct ftrace_ring_buffer *buffer)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long flags;
 	int dolock;
 	int cpu;
@@ -3573,16 +3573,16 @@ int ring_buffer_empty(struct ring_buffer *buffer)
 
 	return 1;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_empty);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_empty);
 
 /**
- * ring_buffer_empty_cpu - is a cpu buffer of a ring buffer empty?
+ * ftrace_ring_buffer_empty_cpu - is a cpu buffer of a ring buffer empty?
  * @buffer: The ring buffer
  * @cpu: The CPU buffer to test
  */
-int ring_buffer_empty_cpu(struct ring_buffer *buffer, int cpu)
+int ftrace_ring_buffer_empty_cpu(struct ftrace_ring_buffer *buffer, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer;
 	unsigned long flags;
 	int dolock;
 	int ret;
@@ -3603,11 +3603,11 @@ int ring_buffer_empty_cpu(struct ring_buffer *buffer, int cpu)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_empty_cpu);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_empty_cpu);
 
-#ifdef CONFIG_RING_BUFFER_ALLOW_SWAP
+#ifdef CONFIG_FTRACE_RING_BUFFER_ALLOW_SWAP
 /**
- * ring_buffer_swap_cpu - swap a CPU buffer between two ring buffers
+ * ftrace_ring_buffer_swap_cpu - swap a CPU buffer between two ring buffers
  * @buffer_a: One buffer to swap with
  * @buffer_b: The other buffer to swap with
  *
@@ -3616,11 +3616,11 @@ EXPORT_SYMBOL_GPL(ring_buffer_empty_cpu);
  * it is expected that the tracer handles the cpu buffer not being
  * used at the moment.
  */
-int ring_buffer_swap_cpu(struct ring_buffer *buffer_a,
-			 struct ring_buffer *buffer_b, int cpu)
+int ftrace_ring_buffer_swap_cpu(struct ftrace_ring_buffer *buffer_a,
+			 struct ftrace_ring_buffer *buffer_b, int cpu)
 {
-	struct ring_buffer_per_cpu *cpu_buffer_a;
-	struct ring_buffer_per_cpu *cpu_buffer_b;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer_a;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer_b;
 	int ret = -EINVAL;
 
 	if (!cpumask_test_cpu(cpu, buffer_a->cpumask) ||
@@ -3633,7 +3633,7 @@ int ring_buffer_swap_cpu(struct ring_buffer *buffer_a,
 
 	ret = -EAGAIN;
 
-	if (ring_buffer_flags != RB_BUFFERS_ON)
+	if (ftrace_ring_buffer_flags != RB_BUFFERS_ON)
 		goto out;
 
 	if (atomic_read(&buffer_a->record_disabled))
@@ -3680,25 +3680,25 @@ out_dec:
 out:
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_swap_cpu);
-#endif /* CONFIG_RING_BUFFER_ALLOW_SWAP */
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_swap_cpu);
+#endif /* CONFIG_FTRACE_RING_BUFFER_ALLOW_SWAP */
 
 /**
- * ring_buffer_alloc_read_page - allocate a page to read from buffer
+ * ftrace_ring_buffer_alloc_read_page - allocate a page to read from buffer
  * @buffer: the buffer to allocate for.
  *
- * This function is used in conjunction with ring_buffer_read_page.
+ * This function is used in conjunction with ftrace_ring_buffer_read_page.
  * When reading a full page from the ring buffer, these functions
  * can be used to speed up the process. The calling function should
  * allocate a few pages first with this function. Then when it
  * needs to get pages from the ring buffer, it passes the result
- * of this function into ring_buffer_read_page, which will swap
+ * of this function into ftrace_ring_buffer_read_page, which will swap
  * the page that was allocated, with the read page of the buffer.
  *
  * Returns:
  *  The page allocated, or NULL on error.
  */
-void *ring_buffer_alloc_read_page(struct ring_buffer *buffer)
+void *ftrace_ring_buffer_alloc_read_page(struct ftrace_ring_buffer *buffer)
 {
 	struct buffer_data_page *bpage;
 	unsigned long addr;
@@ -3713,39 +3713,39 @@ void *ring_buffer_alloc_read_page(struct ring_buffer *buffer)
 
 	return bpage;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_alloc_read_page);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_alloc_read_page);
 
 /**
- * ring_buffer_free_read_page - free an allocated read page
+ * ftrace_ring_buffer_free_read_page - free an allocated read page
  * @buffer: the buffer the page was allocate for
  * @data: the page to free
  *
- * Free a page allocated from ring_buffer_alloc_read_page.
+ * Free a page allocated from ftrace_ring_buffer_alloc_read_page.
  */
-void ring_buffer_free_read_page(struct ring_buffer *buffer, void *data)
+void ftrace_ring_buffer_free_read_page(struct ftrace_ring_buffer *buffer, void *data)
 {
 	free_page((unsigned long)data);
 }
-EXPORT_SYMBOL_GPL(ring_buffer_free_read_page);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_free_read_page);
 
 /**
- * ring_buffer_read_page - extract a page from the ring buffer
+ * ftrace_ring_buffer_read_page - extract a page from the ring buffer
  * @buffer: buffer to extract from
- * @data_page: the page to use allocated from ring_buffer_alloc_read_page
+ * @data_page: the page to use allocated from ftrace_ring_buffer_alloc_read_page
  * @len: amount to extract
  * @cpu: the cpu of the buffer to extract
  * @full: should the extraction only happen when the page is full.
  *
  * This function will pull out a page from the ring buffer and consume it.
  * @data_page must be the address of the variable that was returned
- * from ring_buffer_alloc_read_page. This is because the page might be used
+ * from ftrace_ring_buffer_alloc_read_page. This is because the page might be used
  * to swap with a page in the ring buffer.
  *
  * for example:
- *	rpage = ring_buffer_alloc_read_page(buffer);
+ *	rpage = ftrace_ring_buffer_alloc_read_page(buffer);
  *	if (!rpage)
  *		return error;
- *	ret = ring_buffer_read_page(buffer, &rpage, len, cpu, 0);
+ *	ret = ftrace_ring_buffer_read_page(buffer, &rpage, len, cpu, 0);
  *	if (ret >= 0)
  *		process_page(rpage, ret);
  *
@@ -3761,11 +3761,11 @@ EXPORT_SYMBOL_GPL(ring_buffer_free_read_page);
  *  >=0 if data has been transferred, returns the offset of consumed data.
  *  <0 if no data has been transferred.
  */
-int ring_buffer_read_page(struct ring_buffer *buffer,
+int ftrace_ring_buffer_read_page(struct ftrace_ring_buffer *buffer,
 			  void **data_page, size_t len, int cpu, int full)
 {
-	struct ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_per_cpu *cpu_buffer = buffer->buffers[cpu];
+	struct ftrace_ring_buffer_event *event;
 	struct buffer_data_page *bpage;
 	struct buffer_page *reader;
 	unsigned long missed_events;
@@ -3910,7 +3910,7 @@ int ring_buffer_read_page(struct ring_buffer *buffer,
  out:
 	return ret;
 }
-EXPORT_SYMBOL_GPL(ring_buffer_read_page);
+EXPORT_SYMBOL_GPL(ftrace_ring_buffer_read_page);
 
 #ifdef CONFIG_TRACING
 static ssize_t
@@ -3974,7 +3974,7 @@ static __init int rb_init_debugfs(void)
 	d_tracer = tracing_init_dentry();
 
 	trace_create_file("tracing_on", 0644, d_tracer,
-			    &ring_buffer_flags, &rb_simple_fops);
+			    &ftrace_ring_buffer_flags, &rb_simple_fops);
 
 	return 0;
 }
@@ -3986,8 +3986,8 @@ fs_initcall(rb_init_debugfs);
 static int rb_cpu_notify(struct notifier_block *self,
 			 unsigned long action, void *hcpu)
 {
-	struct ring_buffer *buffer =
-		container_of(self, struct ring_buffer, cpu_notify);
+	struct ftrace_ring_buffer *buffer =
+		container_of(self, struct ftrace_ring_buffer, cpu_notify);
 	long cpu = (long)hcpu;
 
 	switch (action) {

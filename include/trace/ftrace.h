@@ -399,9 +399,9 @@ static inline notrace int ftrace_get_offsets_##call(			\
  * {
  *	struct ftrace_event_call *event_call = __data;
  *	struct ftrace_data_offsets_<call> __maybe_unused __data_offsets;
- *	struct ring_buffer_event *event;
+ *	struct ftrace_ring_buffer_event *event;
  *	struct ftrace_raw_<call> *entry; <-- defined in stage 1
- *	struct ring_buffer *buffer;
+ *	struct ftrace_ring_buffer *buffer;
  *	unsigned long irq_flags;
  *	int __data_size;
  *	int pc;
@@ -417,7 +417,7 @@ static inline notrace int ftrace_get_offsets_##call(			\
  *				  irq_flags, pc);
  *	if (!event)
  *		return;
- *	entry	= ring_buffer_event_data(event);
+ *	entry	= ftrace_ring_buffer_event_data(event);
  *
  *	{ <assign>; }  <-- Here we assign the entries by the __field and
  *			   __array macros.
@@ -501,9 +501,9 @@ ftrace_raw_event_##call(void *__data, proto)				\
 {									\
 	struct ftrace_event_call *event_call = __data;			\
 	struct ftrace_data_offsets_##call __maybe_unused __data_offsets;\
-	struct ring_buffer_event *event;				\
+	struct ftrace_ring_buffer_event *event;				\
 	struct ftrace_raw_##call *entry;				\
-	struct ring_buffer *buffer;					\
+	struct ftrace_ring_buffer *buffer;					\
 	unsigned long irq_flags;					\
 	int __data_size;						\
 	int pc;								\
@@ -519,7 +519,7 @@ ftrace_raw_event_##call(void *__data, proto)				\
 				 irq_flags, pc);			\
 	if (!event)							\
 		return;							\
-	entry	= ring_buffer_event_data(event);			\
+	entry	= ftrace_ring_buffer_event_data(event);			\
 									\
 	tstruct								\
 									\

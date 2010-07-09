@@ -65,8 +65,8 @@ static void trace_note(struct blk_trace *bt, pid_t pid, int action,
 		       const void *data, size_t len)
 {
 	struct blk_io_trace *t;
-	struct ring_buffer_event *event = NULL;
-	struct ring_buffer *buffer = NULL;
+	struct ftrace_ring_buffer_event *event = NULL;
+	struct ftrace_ring_buffer *buffer = NULL;
 	int pc = 0;
 	int cpu = smp_processor_id();
 	bool blk_tracer = blk_tracer_enabled;
@@ -79,7 +79,7 @@ static void trace_note(struct blk_trace *bt, pid_t pid, int action,
 						  0, pc);
 		if (!event)
 			return;
-		t = ring_buffer_event_data(event);
+		t = ftrace_ring_buffer_event_data(event);
 		goto record_it;
 	}
 
@@ -181,8 +181,8 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 		     int rw, u32 what, int error, int pdu_len, void *pdu_data)
 {
 	struct task_struct *tsk = current;
-	struct ring_buffer_event *event = NULL;
-	struct ring_buffer *buffer = NULL;
+	struct ftrace_ring_buffer_event *event = NULL;
+	struct ftrace_ring_buffer *buffer = NULL;
 	struct blk_io_trace *t;
 	unsigned long flags = 0;
 	unsigned long *sequence;
@@ -215,7 +215,7 @@ static void __blk_add_trace(struct blk_trace *bt, sector_t sector, int bytes,
 						  0, pc);
 		if (!event)
 			return;
-		t = ring_buffer_event_data(event);
+		t = ftrace_ring_buffer_event_data(event);
 		goto record_it;
 	}
 

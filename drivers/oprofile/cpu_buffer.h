@@ -16,7 +16,7 @@
 #include <linux/workqueue.h>
 #include <linux/cache.h>
 #include <linux/sched.h>
-#include <linux/ring_buffer.h>
+#include <linux/ftrace_ring_buffer.h>
 
 struct task_struct;
 

@@ -172,7 +172,7 @@ void oprofile_cpu_buffer_inc_smpl_lost(void);
 struct op_sample;
 
 struct op_entry {
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer_event *event;
 	struct op_sample *sample;
 	unsigned long size;
 	unsigned long *data;

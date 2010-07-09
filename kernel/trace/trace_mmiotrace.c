@@ -128,7 +128,7 @@ static void mmio_close(struct trace_iterator *iter)
 static unsigned long count_overruns(struct trace_iterator *iter)
 {
 	unsigned long cnt = atomic_xchg(&dropped_count, 0);
-	unsigned long over = ring_buffer_overruns(iter->tr->buffer);
+	unsigned long over = ftrace_ring_buffer_overruns(iter->tr->buffer);
 
 	if (over > prev_overruns)
 		cnt += over - prev_overruns;
@@ -309,8 +309,8 @@ static void __trace_mmiotrace_rw(struct trace_array *tr,
 				struct mmiotrace_rw *rw)
 {
 	struct ftrace_event_call *call = &event_mmiotrace_rw;
-	struct ring_buffer *buffer = tr->buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer_event *event;
 	struct trace_mmiotrace_rw *entry;
 	int pc = preempt_count();
 
@@ -320,7 +320,7 @@ static void __trace_mmiotrace_rw(struct trace_array *tr,
 		atomic_inc(&dropped_count);
 		return;
 	}
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->rw			= *rw;
 
 	if (!filter_check_discard(call, entry, buffer, event))
@@ -339,8 +339,8 @@ static void __trace_mmiotrace_map(struct trace_array *tr,
 				struct mmiotrace_map *map)
 {
 	struct ftrace_event_call *call = &event_mmiotrace_map;
-	struct ring_buffer *buffer = tr->buffer;
-	struct ring_buffer_event *event;
+	struct ftrace_ring_buffer *buffer = tr->buffer;
+	struct ftrace_ring_buffer_event *event;
 	struct trace_mmiotrace_map *entry;
 	int pc = preempt_count();
 
@@ -350,7 +350,7 @@ static void __trace_mmiotrace_map(struct trace_array *tr,
 		atomic_inc(&dropped_count);
 		return;
 	}
-	entry	= ring_buffer_event_data(event);
+	entry	= ftrace_ring_buffer_event_data(event);
 	entry->map			= *map;
 
 	if (!filter_check_discard(call, entry, buffer, event))
