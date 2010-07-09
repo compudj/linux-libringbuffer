@@ -211,6 +211,46 @@ int kthread_stop(struct task_struct *k)
 }
 EXPORT_SYMBOL(kthread_stop);
 
+/**
+ * kthread_kill_stop - kill and stop a thread created by kthread_create().
+ * @k: thread created by kthread_create().
+ * @signo: signal number to send.
+ *
+ * Sets kthread_should_stop() for @k to return true, sends a signal, and
+ * waits for it to exit. This can also be called after kthread_create()
+ * instead of calling wake_up_process(): the thread will exit without
+ * calling threadfn().
+ *
+ * If threadfn() may call do_exit() itself, the caller must ensure
+ * task_struct can't go away.
+ *
+ * Returns the result of threadfn(), or %-EINTR if wake_up_process()
+ * was never called.
+ */
+int kthread_kill_stop(struct task_struct *k, int signo)
+{
+	struct kthread *kthread;
+	int ret;
+
+	trace_sched_kthread_stop(k);
+	get_task_struct(k);
+
+	kthread = to_kthread(k);
+	barrier(); /* it might have exited */
+	if (k->vfork_done != NULL) {
+		kthread->should_stop = 1;
+		force_sig(signo, k);
+		wait_for_completion(&kthread->exited);
+	}
+	ret = k->exit_code;
+
+	put_task_struct(k);
+	trace_sched_kthread_stop_ret(ret);
+
+	return ret;
+}
+EXPORT_SYMBOL(kthread_kill_stop);
+
 int kthreadd(void *unused)
 {
 	struct task_struct *tsk = current;
