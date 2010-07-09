@@ -1,0 +1,260 @@
+		        Ring Buffer Library Usage
+
+			    Mathieu Desnoyers
+
+
+This document explains how to use the Linux Kernel Ring Buffer Library.
+
+The library presents a high-level interface that allows programmers to easily
+create and use a ring buffer instance. It also provides a more advanced client
+configuration API for clients with more elaborate needs (e.g. tracers).
+
+
+* Basic ring buffer configurations
+
+  The basic high-level configurations offered are pre-built clients with the
+following configuration selections under include/linux/ringbuffer/.
+
+  * The write-side (data producer) APIs are available in:
+
+    - global_overwrite.h:
+        global buffer, overwrite mode, channel-wide record iterator
+
+    - global_discard.h:
+        global buffer, discard mode, channel-wide record iterator
+
+    - percpu_overwrite.h:
+        per-cpu buffers, overwrite mode, channel-wide record iterator
+
+    - percpu_discard.h:
+        per-cpu buffers, discard mode, channel-wide record iterator
+
+    - percpu_local_overwrite.h:
+        per-cpu buffers, overwrite mode, per-cpu buffer record iterator
+
+    - percpu_local_discard.h:
+        per-cpu buffers, discard mode, per-cpu buffer record iterator
+
+  Typical use-case of the ring buffer write-side:
+
+    1) create
+    2) multiple calls to the write primitive.
+    3) destroy
+
+
+  * The read-side (data consumer) iterator APIs are available in:
+
+  - iterator.h
+
+    These iterators allow to iterate on records either on a per-cpu buffer or
+    channel-wide basis.
+
+    Typical life-span of a reader using the file descriptor read() iterator:
+
+    (in user-space)
+    # cat /path_to_file/filename
+
+    Typical life-span of a reader using the in-kernel API:
+
+    1) iterator_open()
+    2) get_next_record and read_current_record until get_next_record returns
+       -ENODATA. -EAGAIN means there is currently no data, but there might be
+       more data coming in the future.
+    3) iterator_close()
+
+
+* Advanced client configurations
+
+  * Advanced client configuration options
+
+  More options are available for clients with more advanced needs. These options
+are listed in the linux/ringbuffer/config.h header. A ring buffer "client" (a
+kernel object using the ring buffer library through its advanced options API)
+must set up a "static const" ring_buffer_config structure in which all options
+are spelled out.
+
+The pre-built basic configurations presented in the above set these advanced
+configuration options to values typically correct for driver use.
+
+A client using the advanced configuration options must first include
+linux/ringbuffer/config.h, declare its configuration structure, declare the
+required static inline functions used by the fast-paths, and then include
+linux/ringbuffer/api.h.
+
+The struct ring_buffer_config options are:
+
+  * alloc: RING_BUFFER_ALLOC_PER_CPU / RING_BUFFER_ALLOC_GLOBAL
+
+    Selects either global buffer or per-cpu ring buffers.
+
+  * sync: RING_BUFFER_SYNC_PER_CPU / RING_BUFFER_SYNC_GLOBAL
+
+    Selects which synchronization primitives must be used. Either expect
+    concurrency from other processors, or expect to only have concurrency with
+    the local processor. Separated from the "alloc" option because per-thread
+    buffers would fit in the "global alloc, per-cpu sync". Similarly, per-cpu
+    buffers written to with preemption enabled would fit in the "per-cpu
+    alloc, global sync" category, because migration could lead to a concurrent
+    write into a remote cpu buffer.
+
+  * mode: RING_BUFFER_OVERWRITE / RING_BUFFER_DISCARD
+
+    Either overwrite oldest subbuffers when buffer is full, or discard events.
+
+  * align: RING_BUFFER_NATURAL / RING_BUFFER_PACKED
+
+    Natural alignment aligns record headers on their natural alignment on the
+    architecture. It also aligns record payload on their natural alignment
+    (similarly to a C structure). The packed option does not perform any
+    alignment for record header and payloads. It corresponds to the "packed" gcc
+    type attribute.
+
+  * output:
+
+      RING_BUFFER_SPLICE:   Output raw subbuffers through per-buffer file
+                            descriptors with splice(). The read-side
+                            synchronization needed to select the current
+                            subbuffer is performed with ioctl().
+
+      RING_BUFFER_MMAP:     Output raw subbuffers through per-buffer memory
+                            mapped file descriptors. Read-side synchronization
+                            to select the current subbuffer is performed with
+                            ioctl().
+
+      RING_BUFFER_READ:     Output raw subbuffers through per-buffer file
+                            descriptors with read(). The read-side
+                            synchronization needed to select the current
+                            subbuffer is performed with ioctl().
+                            (unimplemented)
+
+      RING_BUFFER_ITERATOR: Iterators allow a reader thread to read records one
+                            by one in the order they were written, either on a
+                            per-buffer or per-channel basis.
+
+      RING_BUFFER_NONE:     No output provided by the library is used.
+
+  * backend:
+
+      RING_BUFFER_PAGE:     The memory backend used to hold the ring buffers is
+                            made of non-contiguous pages. A software-controlled
+                            "subbuffer table" indexes the pages. It allows
+                            sub-buffer exchange between the producer and
+                            consumer in overwrite mode.
+
+      RING_BUFFER_VMAP:     A vmap'd virtually contiguous memory area is used as
+                            memory backend. (unimplemented)
+
+      RING_BUFFER_STATIC:   A physically contiguous memory area is used as
+                            memory backend. e.g. memory allocated at early boot,
+                            or video card memory. (unimplemented)
+
+  * oops:
+        Select "oops" consistency if you plan to read from the ring buffer
+        after a kernel oops occurred. This is useful if you plan to use the
+        ring buffer data in a crash report. Adds a slight performance overhead
+        to keep track of how much contiguous data has been written in the
+        current subbuffer.
+
+  * ipi:
+        The IPI_BARRIER scheme issues IPIs when the consumer needs to grab a
+        sub-buffer. It issues the appropriate memory barriers on the writer
+        CPU(s). It is therefore possible to turn the memory barrier in the
+        commit fast-path into a simple compiler barrier, thus improving
+        performances. This scheme is recommended when both per-cpu allocation
+        and synchronization are used. This scheme is not recommended for
+        "global" buffers, because it would involve sending IPIs to all
+        processors.
+
+  * wakeup:
+        The option "RING_BUFFER_WAKEUP_BY_TIMER" reduces intrusiveness in
+        the writer code and guarantees wait-free/lock-free write primitives
+        by performing lazy reader wakeups in a periodic deferrable timer and
+        hooking into cpu idle notifiers. This option makes tracer code more
+        robust at the expense of additional data delivery delay.
+        Use in combination with "read_timer_interval" channel_create()
+        argument.
+                - Note: CPU idle notifiers are not implemented for all
+                  architectures at the moment. The deferrable timer delays can
+                  only expected to be met by architectures with idle notifiers.
+       RING_BUFFER_WAKEUP_BY_WRITER option specifies that the ring buffer
+       write-side must perform reader wakeups at each sub-buffer boundary.
+       RING_BUFFER_WAKEUP_NONE does not perform any wakeup whatsoever. The
+       client has the responsibility to perform wakeups.
+
+  * tsc_bits:
+        Timestamp compression scheme setting. 0 means that no timestamps
+        are used; 64 means that full 64-bit timestamps are written with
+        each record. For any value between 1 and 63, the ring buffer
+        library will set the RING_BUFFER_RFLAG_FULL_TSC bit in the
+        "rflags" ring_buffer_ctx field, which is also passed as parameter
+        passed to the "record_header_size()" callback to inform the client
+        that a full 64-bit timestamp is needed due to a "tsc_bits"
+        overflow since the last record.
+
+Some options are passed as parameter to channel_create():
+
+  * subbuf_size:
+        Size of a sub-buffer within a ring buffer. Extra synchronization is
+	performed when the data producer crosses sub-buffer boundaries. This
+        corresponds to "periods" in audio buffers. The maximum record size is
+        limited by the sub-buffer size. The minimum sub-buffer size is 1 page.
+
+  * num_subbuf:
+        Number of sub-buffers per buffer. Typically, using at least 2
+        sub-buffers is recommended to minimize record discards.
+
+  * switch_timer_interval:
+        The switch timer interval configures the periodical deferrable
+        timer which handles periodical buffer switch. It is used to make
+        data readily available for consumption periodically for live data
+	streaming. A buffer switch is a synchronization point between the data
+        producers and consumer.
+
+  * read_timer_interval:
+        The read timer interval is the time interval (in us) to wake up pending
+        readers.
+
+* Advanced client callbacks
+
+  These callbacks are configured by the cb field of the ring_buffer_config
+structure. They are provided to the ring buffer by the client. For both
+ring_buffer_clock_read() and record_header_size(), inline versions must also be
+provided before inclusion of linux/ringbuffer/api.h.
+
+  * ring_buffer_clock_read():
+        Returns the current ring buffer clock source time (64-bit value).
+
+  * record_header_size():
+        Returns the size of the current record size, including record header
+        size. It uses the "rflags" parameter to determine if a full 64-bit
+        timestamp is required or if "tsc_bits" bits are enough to represent the
+        current time and detect "tsc_bits"-bit overflow. The offset received as
+        parameter is relative to a page boundary, which allows alignment
+        calculation. data_size is the size of the event payload.
+        "pre_header_padding" can be set by record_header_size() to the amount of
+        padding required to align the record header (considered to be 0 if
+        unset).
+
+  * subbuffer_header_size():
+        Returns the size of the subbuffer header.
+
+  * buffer_begin():
+        Callback executed when crossing a sub-buffer boundary, when starting to
+        write into the sub-buffer.
+
+  * buffer_end():
+        Callback executed when crossing a sub-buffer boundary, before delivering
+        a sub-buffer. Has exclusive sub-buffer access when called; meaning that
+        no concurrent commits are left, no reader can access the sub-buffer, no
+        concurrent writers are allowed to overwrite the sub-buffer.
+
+  * buffer_create():
+        This callback is executed upon creation of a buffer, either at channel
+        creation, or at CPU hotplug.
+
+  * buffer_finalize():
+        Callback executed upon channel finalize, performed by channel_destroy().
+
+  * record_get():
+        Reader helper provided by the client, which can be used to extract the
+        record header from a record in the buffer.

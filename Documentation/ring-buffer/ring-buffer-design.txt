@@ -1,0 +1,78 @@
+                        Ring Buffer Library Design
+
+                            Mathieu Desnoyers
+
+
+This document explains Linux Kernel Ring Buffer library.
+
+
+* Purpose of the ring buffer library
+
+Tracing: the main purpose of the ring buffer library is to perform tracing
+efficiently by providing an efficient ring buffer to transport trace data.
+
+Fast fifo queue for drivers: this library is meant to be generic enough to meet
+the requirements of audio, video and other drivers to provide an easy-to-use,
+yet efficient, buffering API.
+
+Lock-free write-side: the main advantage of this ring buffer implementation is
+that it provides non-blocking synchronization for the writer context. It
+furthermore provides a bounded write-side execution time for real-time
+applications. The per-CPU buffer configuration is wait-free. The global buffer
+configuration is lock-free. (wait-free is a stronger progress guarantee than
+lock-free.)
+
+
+* Semantic
+
+The execution context writing to the ring buffer is hereby called "producer" (or
+writer) and the thread reading the ring buffer content is called "consumer" (or
+reader). Each instance of either per-cpu or global ring buffers is called a
+"channel". A buffer is divided into subbuffers, which are synchronization points
+in the buffers (sometimes referred to as periods in the audio world). Each item
+stored in the ring buffer is called a "record". Both subbuffers and records
+may start with a "header". Records can also contain a variable-sized payload.
+
+The ring buffer supports two write modes. The "discard" mode drops data when the
+ring buffer is full. The "overwrite" (a.k.a. flight recorder) mode overwrites
+the oldest information when the ring buffer is full.
+
+Iterators are one way to consume data from the ring buffer. They allow a reader
+thread to read records one by one in the order they were written, either on a
+per-buffer or per-channel basis. Other ways to consume data are by using file
+descriptors which provide access to raw subbuffer content through, e.g.,
+splice() or mmap().
+
+
+* Programmer Interfaces
+
+The library presents a high-level interface that allows programmers to easily
+create and use a ring buffer instance. It also provides a more advanced client
+configuration API for clients with more elaborate needs (e.g. tracers).
+
+
+* Advanced client configuration options
+
+The options listed in the linux/ringbuffer/config.h header are tailored for ring
+buffer "clients" (a kernel object using the ring buffer library through its
+advanced options API) with more specific needs. The clients must set up a
+"static const" ring_buffer_config structure in which all options are spelled
+out. Given that this structure is known to be immutable, compiler optimizations
+can optimize away all the unneeded code from the library inline fast paths. The
+slow paths, however, dynamically select the correct code depending on the
+ring_buffer_config structure received as parameter. This saves space by sharing
+the slow path code between all ring buffer clients.
+
+
+* Frontend/backend layered design
+
+The ring buffer is made of two main layers: a frontend and a backend. The
+"frontend" locklessly manages space reservation within the buffer. It also
+manages timers, idle and cpu hotplug. The "backend" manages the memory backend
+used to allocate the buffers. It deals with subbuffer exchanges between the
+consumer and the producer in overwrite mode. Currently, only a page-based
+backend is implemented (RING_BUFFER_PAGE), but other backends are planned for
+the future: statically allocated backends (RING_BUFFER_STATIC) and vmap-based
+backends (RING_BUFFER_VMAP). These will allow, for instance, tracers to write
+trace data in a physically contiguous memory region allocated at boot time, or
+to write data in video card memory for crash reports.
