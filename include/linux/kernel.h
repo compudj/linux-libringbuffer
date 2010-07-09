@@ -4,8 +4,7 @@
 /*
  * 'kernel.h' contains some often-used function prototypes etc
  */
-#define __ALIGN_KERNEL(x, a)		__ALIGN_KERNEL_MASK(x, (typeof(x))(a) - 1)
-#define __ALIGN_KERNEL_MASK(x, mask)	(((x) + (mask)) & ~(mask))
+#include <linux/align.h>
 
 #ifdef __KERNEL__
 
@@ -38,11 +37,6 @@ extern const char linux_proc_banner[];
 #define ULLONG_MAX	(~0ULL)
 
 #define STACK_MAGIC	0xdeadbeef
-
-#define ALIGN(x, a)		__ALIGN_KERNEL((x), (a))
-#define __ALIGN_MASK(x, mask)	__ALIGN_KERNEL_MASK((x), (mask))
-#define PTR_ALIGN(p, a)		((typeof(p))ALIGN((unsigned long)(p), (a)))
-#define IS_ALIGNED(x, a)		(((x) & ((typeof(x))(a) - 1)) == 0)
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]) + __must_be_array(arr))
 

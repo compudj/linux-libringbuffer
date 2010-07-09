@@ -18,6 +18,7 @@ header-y += usb/
 
 header-y += affs_hardblocks.h
 header-y += aio_abi.h
+header-y += align.h
 header-y += arcfb.h
 header-y += atmapi.h
 header-y += atmarp.h
