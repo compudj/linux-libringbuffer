@@ -102,6 +102,9 @@ extern void * memset(void *,int,__kernel_size_t);
 #ifndef __HAVE_ARCH_MEMCPY
 extern void * memcpy(void *,const void *,__kernel_size_t);
 #endif
+#ifndef __HAVE_ARCH_INLINE_MEMCPY
+#define inline_memcpy memcpy
+#endif
 #ifndef __HAVE_ARCH_MEMMOVE
 extern void * memmove(void *,const void *,__kernel_size_t);
 #endif
